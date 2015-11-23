@@ -1,0 +1,239 @@
+// probes.h:
+// Copyright (C) 2006 Giorgio Biagetti and Simone Orcioni
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#ifndef PROBES_H
+#define PROBES_H
+
+#include "../wave_system"
+#include "../analog_system"
+#include "../sys/wave_basics"
+#include <limits>
+
+// Definition of comparator classes:
+
+template <class T>
+struct compare_sense : wave_module <1, T>
+{
+	typedef typename T::wave_type wave_type;
+	compare_sense (cfg::source_type type, wave_type low, wave_type high);
+	sc_core::sc_out <bool> output;
+protected:
+	bool compare () const;
+        int reflection;
+	wave_type lo_thr, hi_thr;
+	static wave_type no_threshold () {return std::numeric_limits<wave_type>::quiet_NaN();}
+};
+
+struct instant
+{
+	instant () : tau(0) {}
+	const double tau;
+};
+
+struct delayed
+{
+	delayed (double propagation) : tau(propagation / 0.693) {}
+	const double tau;
+};
+
+template <class T, class mode>
+struct comparator : compare_sense <T>, mode {};
+
+template <class T>
+struct comparator <T, instant> : compare_sense <T>, instant
+{
+	SC_HAS_PROCESS(comparator);
+	comparator (
+		sc_core::sc_module_name name,
+		cfg::source_type type = cfg::wave,
+		typename T::wave_type low_threshold = 0,
+		typename T::wave_type high_threshold = compare_sense<T>::no_threshold()
+	) : compare_sense<T>(type, low_threshold, high_threshold) {
+		SC_METHOD(calculus); this->sensitive << this->activation;
+	}
+private:
+	void calculus ();
+};
+
+template <class T>
+struct comparator <T, delayed> : compare_sense <T>, delayed, analog_module
+{
+	SC_HAS_PROCESS(comparator);
+	comparator (
+		sc_core::sc_module_name name,
+		double propagation_delay,
+		cfg::source_type type = cfg::wave,
+		typename T::wave_type low_threshold = 0,
+		typename T::wave_type high_threshold = compare_sense<T>::no_threshold()
+	) : compare_sense<T>(type, low_threshold, high_threshold), delayed(propagation_delay), analog_module(1, tau / 50, tau) {
+		SC_THREAD(calculus); this->sensitive << this->activation;
+	}
+private:
+	void field (double *var) const;
+	void calculus ();
+};
+
+// Implementation of class compare_sense:
+
+template <class T> compare_sense<T>::compare_sense (cfg::source_type type, typename T::wave_type low_threshold, typename T::wave_type high_threshold)
+{
+	// if no or invalid high_threshold is specified, assume no hysteresis:
+	lo_thr = low_threshold;
+	hi_thr = high_threshold == high_threshold && low_threshold < high_threshold ? high_threshold : low_threshold;
+	switch (type) {
+	case cfg::wave    : this->reflection =  0; break; // perfect absorber
+	case cfg::across  : this->reflection = +1; break; // open
+	case cfg::through : this->reflection = -1; break; // shunt
+	}
+}
+
+template <class T> bool compare_sense<T>::compare () const
+{
+	double threshold = this->output ? lo_thr : hi_thr;
+	double R0 = this->port->get_normalization();
+	double a = this->port->read();
+	return 2 * a * sqrt(R0) >= threshold;
+}
+
+// Implementation of class comparator:
+
+template <class T> void comparator<T, instant>::calculus ()
+{
+	this->port->write(this->reflection * this->port->read());
+	this->output->write(this->compare());
+}
+
+template <class T> void comparator<T, delayed>::calculus ()
+{
+	while (step()) {
+		this->port->write(this->reflection * this->port->read());
+		this->output->write(state[0] >= 0.5);
+	}
+}
+
+template <class T> void comparator<T, delayed>::field (double *var) const
+{
+	var[0] = (this->compare() - state[0]) / tau;
+}
+
+
+// Definition of class probe:
+
+template <class T1>
+struct probe : wave_module<1, T1>, analog_module
+{
+	SC_HAS_PROCESS(probe);
+	probe (sc_core::sc_module_name name, cfg::source_type type, double time_constant);
+	sc_core::sc_out <double> output;
+private:
+	void field (double *var) const;
+	void calculus ();
+	int reflection;
+	const double tau;
+};
+
+
+// Implementation of class probe:
+
+
+template <class T> probe<T>::probe (sc_core::sc_module_name name, cfg::source_type type, double time_constant):analog_module(1, time_constant / 10, time_constant*10), tau(time_constant)
+
+{
+  SC_THREAD(calculus);
+  this->sensitive << this->activation;
+  this->set_tolerances(1e-09, 1e-6, 1e-1);
+  switch (type) {
+        case cfg::wave    : this->reflection =  0; break; // perfect absorber
+        case cfg::across  : this->reflection = +1; break; // voltage probe
+        case cfg::through : this->reflection = -1; break; // current probe
+  }
+}
+
+
+// probe has now as state the voltage instead of the charge
+// it performs better in buck converter simulation
+
+template <class T> void probe<T>::calculus ()
+{
+  //    const double R = 100e-03;
+  //    const double C = tau / R;
+	while (step()) {
+	  double a = this->port->read();
+	  	  this->port->write(this->reflection * a);
+	  //	  this->output->write(state[0]/C);
+	  	  this->output->write(state[0]);
+		  //std::cout << sc_core::sc_simulation_time() <<"   " <<a<<"   "<<state[0]<<"    "<< dt << std::endl;
+	}
+}
+
+template <class T> void probe<T>::field (double *var) const
+{
+
+    double a = this->port->read();
+    //const double R0 = this->port->get_normalization();
+    const double sqrt_R0 = this->port->get_normalization_sqrt();
+    //const double R = 100e-03;
+    //const double C = tau / R;
+
+    // var[0] = (2*a*sqrt_R0 - state[0]/C) / (R + R0);
+    var[0] = (2*a*sqrt_R0 - state[0]) / tau;
+
+}
+
+
+
+// Definition of class instant probe - PROVA
+
+template <class T1>
+struct iprobe : wave_module<1, T1>
+{
+	SC_HAS_PROCESS(iprobe);
+	iprobe (sc_core::sc_module_name name, cfg::source_type type);
+	sc_core::sc_out <typename T1::wave_type> output;
+//	sc_core::sc_out <double> output;
+private:
+	void calculus ();
+	double reflection;
+};
+
+
+// Implementation of class iprobe:
+
+
+template <class T> iprobe<T>::iprobe (sc_core::sc_module_name name, cfg::source_type type)
+
+{
+  SC_METHOD(calculus);
+  this->sensitive << this->activation;
+  switch (type) {
+        case cfg::wave    : this->reflection =  0.0; break; // perfect absorber
+        case cfg::across  : this->reflection = +1.0; break; // voltage probe
+        case cfg::through : this->reflection = -1.0; break; // current probe
+  }
+}
+
+template <class T> void iprobe<T>::calculus ()
+   {
+     const double sqrt_R0 = this->port->get_normalization_sqrt();
+     typename T::wave_type a = this->port->read();
+     this->port->write(this->reflection * a);
+     this->output->write(2.0*a/sqrt_R0);
+   }
+
+
+#endif // PROBES_H

@@ -1,0 +1,53 @@
+2008       ChangeLog updating discontinued
+16.07.2007 Giorgio Biagetti
+	   added "decibel" class to aid expression of logarithmic values.
+	   Version updated to match paper published on EURASIP Journal on Embedded Systems.
+06.10.2007 Giorgio Biagetti
+	   added "oversample" parameter to sine generator to override time step (previous default oversample factor was 100*pi, current default is 256).
+	   added "composite_signal" class to allow the combination of different generator sources by means of the "+" operator.
+	   added experimental and non-working file-reader signal generator.
+27.09.2007 Giorgio Biagetti
+	   added experimental subsampling capability to tab_trace.
+27.07.2007 Simone Orcioni
+           added LsCp_Ladder, second order low pass filter, two port 
+	   with L series and C parallel
+11.06.2007 Giorgio Biagetti
+	   fixed operator precedence bug in the state initialization routine.
+16.04.2007 Simone Orcioni
+           chosen as default the Adams-Moulton ode solver. performs better, but            it is a little slower. To change it, edit analog_system.cpp
+           changed adaptive time step algorithm
+21.03.2007 Simone Orcioni
+	   added istant probe module, iprobe. removed in modules a parameter to            choose the rate in adaptive time step.
+14.03.2007 Simone Orcioni
+	   modified module probe in probes library, now it uses as state variable the charge instead of voltage.
+15.02.2007 Simone Orcioni
+           corrected bug in nonlinear library, controlled_switch modules
+05.02.2007 Simone Orcioni
+           corrected Makefile in example directory
+30.12.2006 Giorgio Biagetti
+	added support for direct/reverse connection of ports to channel
+	"slots" by means of unary operators "+" and "-" applied to channels.
+16.12.2006 Giorgio Biagetti
+	added support for wavechannels with arbitrary connection topologies and named binding of ports to channel's "slots" for anisotropic topologies.
+01.11.2006 Simone Orcioni
+        added file with some constant values
+20.10.2006 Giorgio Biagetti, Simone Orcioni
+	added support for gcc compiler versions higher than 3.3
+19.09.2006 Giorgio Biagetti, Simone Orcioni
+	added TCTS component in "ideal", the controlled_switch component in "nonlinear" and the controlled switch with recycling diode moved from HB.cpp to "nature/electrical".
+	added some comments and new components in "nature/electrical"
+	added "nature/hydraulic"
+	corrected some wrong time constants in "sys/oneport" and "sys/twoport" and move some component from one to the other
+        loss in "wave_system" brought back to its original value of 0.1
+04.07.2006 Giorgio Biagetti, Simone Orcioni
+	* LICENCE SystemC-WMS released under the GNU General Public License
+	terms.
+	* ChangeLog writing started
+	SystemC-WMS version 0.6 has been released.
+22.06.2006 Giorgio Biagetti, Simone Orcioni
+	SystemC-WMS version 0.5 has been released.
+	This version contains substantial improvements to the component library as well as to the overall project organization. Users accustomed to the previous
+version are invited to have a look at the "include" directory to discover the new header file layout. 
+
+20.11.2005 Giorgio Biagetti, Simone Orcioni
+	First version of the library released.

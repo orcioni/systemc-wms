@@ -1,0 +1,233 @@
+// power:
+// Copyright (C) 2004-2006 Rocco D. d'Aparo and Simone Orcioni
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+/////////////////////////////////// channels ////////////////////////////////
+
+//Declaration of ladder1 channel:
+/*
+                               a      rab      b
+                               + - - x x x - - +
+                               -               -
+                               -               -
+                               x               x
+                           rad x               x rbc
+                               x               x
+                               -               -
+                               -               -
+                               + - - x x x - - +
+                               d      rcd      c	
+*/
+struct ladder1   : virtual scatter_junction
+{
+	template <class T> struct ports {ab_signal_proxy <T> ad, ab, bc, cd;};
+	const short *incidence_matrix (int &across, int &through) const
+	{
+		static const short kirchhoffs[] = {
+			+1, -1, -1, -1,
+			 0,  1, -1,  0,
+			 0,  0, +1, -1,
+			+1, +1,  0,  0,
+		};
+		across = 1;
+		through = 3;
+		return kirchhoffs;
+	}
+};
+
+//Declaration of ladder2 channel:
+/*
+                               a      rab      b      rbc      c
+                               + - - x x x - - + - - x x x - - +
+                               -               -               -
+                               -               -               -
+                               x               x               x
+                           raf x               x rbc           x rcd
+                               x               x               x
+                               -               -               -
+                               -               -               -
+                               + - - x x x - - + - - x x x - - +
+                               f      ref      e      rde      d	
+*/
+
+struct ladder2   : virtual scatter_junction
+{
+	template <class T> struct ports {ab_signal_proxy <T> ab, af, bc, be, cd, de, ef;};
+	const short *incidence_matrix (int &across, int &through) const
+	{
+		static const short kirchhoffs[] = {
+			-1, +1,  0, -1,  0,  0, -1,
+			 0,  0, -1, +1, -1, -1,  0,
+			+1,  0, -1, -1,  0,  0,  0,
+			 0,  0,  0, +1,  0, +1, -1,
+			 0,  0, +1,  0, -1,  0,  0,
+			 0,  0,  0,  0, +1, -1,  0,
+			+1, +1,  0,  0,  0,  0,  0,
+		};
+		across = 2;
+		through = 5;
+		return kirchhoffs;
+	}
+};
+
+//Declaration of ladder3 channel:
+/*
+                   a      rab      b      rbc      c      rcd      d
+                   + - - x x x - - + - - x x x - - + - - x x x - - +
+                   -               -               -               -
+                   -               -               -               -
+                   x               x               x               x
+               rah x               x rbg           x rcf           x rde
+                   x               x               x               x
+                   -               -               -               -
+                   -               -               -               -
+                   + - - x x x - - + - - x x x - - + - - x x x - - +
+                   h      rfg      g      rfg      f	  ref      e
+*/
+struct ladder3   : virtual scatter_junction
+{
+	template <class T> struct ports {ab_signal_proxy <T> ab, ah, bc, bg, cd, cf, de, ef, fg, gh;};
+	const short *incidence_matrix (int &across, int &through) const
+	{
+		static const short kirchhoffs[] = {
+			-1, +1,  0, -1,  0,  0,  0,  0,  0, -1,
+			 0,  0, -1, +1,  0, -1,  0,  0, -1,  0,
+			 0,  0,  0,  0, -1, +1, -1, -1,  0,  0,
+			+1,  0, -1, -1,  0,  0,  0,  0,  0,  0,
+			 0,  0, +1,  0, -1, -1,  0,  0,  0,  0,
+			 0,  0,  0,  0,  0, +1,  0, +1, -1,  0,
+			 0,  0,  0, +1,  0,  0,  0,  0, +1, -1,
+			 0,  0,  0,  0, +1,  0, -1,  0,  0,  0,
+			 0,  0,  0,  0,  0,  0, +1, -1,  0,  0,
+			+1, +1,  0,  0,  0,  0,  0,  0,  0,  0,
+		};
+		across = 3;
+		through = 7;
+		return kirchhoffs;
+	}
+};
+
+
+
+///////////////////////////////////  COMPONENTS   //////////////////////////////
+//Declaration of class open_branch
+
+template <class T1>
+	struct open_branch : wave_module<1, T1>
+	{
+   	 SC_HAS_PROCESS(open_branch);
+    	open_branch (sc_core::sc_module_name name);
+	private:
+	void calculus ();
+	
+	};
+
+
+//Declaration of class closed_branch
+template <class T1>
+struct closed_branch : wave_module<1, T1>
+{
+    SC_HAS_PROCESS(closed_branch);
+    closed_branch (sc_core::sc_module_name name);
+private:
+	void calculus ();
+};
+
+
+//Declaration of class zener_rectifier:
+template <class T1>
+struct zener_rectifier : wave_module<1, T1>
+{
+    SC_HAS_PROCESS(zener_rectifier);
+    zener_rectifier (sc_core::sc_module_name name, double zener_voltage, double threshold);
+private:
+	void calculus ();
+        double Zv;
+	double Th;
+};
+
+///////////////////////////////////////////////////
+typedef zener_rectifier<electrical> zener_diode_th;
+///////////////////////////////////////////////////
+template <class T>
+struct Ps_2s : wave_module<2, T>, analog_module
+{
+  SC_HAS_PROCESS(Ps_2s);
+  Ps_2s (sc_core::sc_module_name name, double proportional_element
+// double P0 = 1
+);
+
+  private:
+  void calculus ();
+  void field (double *var) const;
+  const double P;
+};
+
+
+
+///////////////////////////////////COMPONENTS
+
+//Implementation of class open_branch:
+
+template <class T> open_branch<T>::open_branch (sc_core::sc_module_name name)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void open_branch<T>::calculus ()
+{
+  const double reflection = 1;
+  this->port->write(this->port->read() * reflection);
+}
+
+//Implementation of class closed_branch:
+
+template <class T> closed_branch<T>::closed_branch (sc_core::sc_module_name name)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;
+}
+template <class T> void closed_branch<T>::calculus ()
+{
+  const double reflection = -1;
+  this->port->write(this->port->read() * reflection);
+}
+
+//Implementation of class zener_rectifier:
+
+template <class T> zener_rectifier<T>::zener_rectifier (sc_core::sc_module_name name, double zener_voltage, double threshold) : Zv(zener_voltage), Th(threshold)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;
+	
+}
+
+template <class T> void zener_rectifier<T>::calculus ()
+{
+    double sqrt_P0 = this->port->get_normalization_sqrt();
+    double P0 = this->port->get_normalization();
+    double a = this->port->read();
+
+ if (a <= -Zv/(2*sqrt_P0))
+	this->port->write(-Zv/(sqrt_P0)*P0-a);
+	
+    else if( a > -Zv/(2*sqrt_P0) && a<0)
+              this->port->write(a);
+	else
+	   this->port->write(Th/sqrt_P0-a);
+
+}

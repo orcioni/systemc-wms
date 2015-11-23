@@ -1,0 +1,4 @@
+CXX=g++
+CFLAGS += -I/usr/local/systemc/include
+LDLIBS += -L/usr/local/systemc/lib-macosx64
+HAVE_LAPACK = yes

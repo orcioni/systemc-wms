@@ -1,0 +1,6 @@
+CXX=g++
+CFLAGS := -I ../../include
+LDLIBS := -L ../../lib -l awms -framework Accelerate
+LDLIBS += -L/usr/local/systemc/lib-macosx64
+CFLAGS += -I/usr/local/systemc/include
+HAVE_LAPACK=yes

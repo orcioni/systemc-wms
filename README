@@ -1,0 +1,18 @@
+This library requires SystemC version 2.1 or higher, gcc version 3.3 or higher, and math lib lapack3.
+To compile, make sure Makefile-local contains reasonable values for your system and then run make in this directory.
+To use gcc 4.x with SystemC 2.1 patch SystemC file sc_module.h.
+SystemC 2.2 is fully compatible with gcc 4.x
+To compile an example, cd to the "example" directory and run make there.
+
+New directory "include/devices" added.
+All user modules are stored in "devices" directory.
+These modules are either typedef of template modules either new modules written from scratch.
+New user modules can be added in "devices" directory or in the user project directory.
+
+In "include/sys" are stored the template modules that are used as typedef in "devices" directory.
+In "include/nature" there are the definition of used nature: hydraulic, mechanical, threephase, electrical, acoustical, rotational.
+Others can be added.
+Usually files in "sys" should not be added directly from the user except for probes and sources that define template for any kind of source and quantity probe.
+
+
+In "include/units" symbols of electrical units, some constants and decibel units are defined.

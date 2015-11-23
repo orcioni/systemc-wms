@@ -1,0 +1,242 @@
+// DSP_modules:
+// Copyright (C) 2007 Simone Orcioni
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#include "systemc.h"
+#include <stdio.h>
+
+//Declaration and implementation of template class quadricorrelator
+
+template <class T> class quadricorrelator : public sc_module {
+
+public:
+  sc_in<T> in_I, in_Q;
+  sc_in<bool> clock;
+
+  sc_out<T> out;
+
+  SC_HAS_PROCESS(quadricorrelator);
+  quadricorrelator(sc_module_name name);
+  void do_it();
+
+private: 
+  sc_signal<T> I_del, Q_del;
+};
+
+template <class T> quadricorrelator<T> :: quadricorrelator (sc_module_name name): sc_module(name){
+  SC_METHOD(do_it);
+  sensitive << clock.pos();
+}
+
+template <class T> void quadricorrelator<T> :: do_it(){
+  
+  out.write(in_I.read()*Q_del.read() - in_Q.read()*I_del.read());
+  Q_del.write(in_Q.read());
+  I_del.write(in_I.read());
+
+}
+
+
+//Declaration and implementation of template class decoder
+
+template <class T> class decoder : public sc_module {
+
+public:
+  sc_in<T> in;
+  sc_in<bool> clock;
+  sc_in<bool> OSR_clock;
+
+  sc_out<T> out_data;
+
+  SC_HAS_PROCESS(decoder);
+  decoder(sc_module_name name);
+  void do_it();
+
+private:
+  sc_signal<T> I_del, Q_del;
+};
+
+template <class T> decoder<T> :: decoder (sc_module_name name): sc_module(name){
+  SC_METHOD(do_it);
+  sensitive << clock.pos();
+}
+
+template <class T> void decoder<T> :: do_it(){
+  
+  if(in.read()>=0.)  out_data.write(1.);
+  if(in.read()<0.)  out_data.write(-1.);
+
+}
+
+
+//Declaration and implementation of template class complex mixer
+
+template <class T> class complex_mixer : public sc_module {
+
+public:
+  sc_in<T> in_I, in_Q;
+  sc_in<T> LO_I, LO_Q;
+
+  sc_out<T> out_I, out_Q;
+
+  SC_HAS_PROCESS(complex_mixer);
+  complex_mixer(sc_module_name name);
+  void do_it();
+
+private: 
+  sc_signal<T> I_del, Q_del;
+};
+
+template <class T> complex_mixer<T> :: complex_mixer (sc_module_name name): sc_module(name){
+  SC_METHOD(do_it);
+  sensitive << in_I, in_Q, LO_I, LO_Q;
+}
+
+template <class T> void complex_mixer<T> :: do_it(){
+  
+  out_I.write(in_I.read()*LO_I.read() - in_Q.read()*LO_Q.read());
+  out_Q.write(in_Q.read()*LO_I.read() + in_I.read()*LO_Q.read());
+}
+
+
+// class template "fir"
+// Template Parameters:
+//   class T - specifie the data-type used within the FIR
+//   T must be a numeric type that supports:
+//     operator==(const T&)
+//     operator=(int)
+//     operator+=(const T&)
+//     operator*(const T&)
+//   unsigned N - specifies the number of taps in FIR
+//     N must be greater than zero
+// Constructor parameters:
+//   sc_module_name name - specifies instance name
+//   cont T* coeffs - pointer to the coefficient array
+//     coeffs array must contain N coefficients
+
+template <class T, unsigned N> class fir:public sc_module {
+public:
+   sc_in<T> in;
+   sc_in<bool> clock;
+   sc_out<T> out;
+
+   SC_HAS_PROCESS(fir);
+   fir(sc_module_name name, const T* coeffs);
+  void main();
+  
+private:
+  T _delay_line[N];
+  const T* _coeffs;
+};
+
+template <class T, unsigned N> fir<T, N> :: fir(sc_module_name name, const T* coeffs): 
+        sc_module(name), _coeffs(coeffs)
+{
+   assert(N > 0);
+   SC_METHOD(main);
+   sensitive << clock.pos();
+
+   for(int i=0; i < N; i++)
+      _delay_line[i] = 0;
+}
+
+template <class T, unsigned N> void fir<T, N> :: main() 
+{
+   // shift samples within delay line
+   for (int j=N-1; j > 0; j--)
+      _delay_line[j] = _delay_line[j-1];
+
+   // read new data sample
+   _delay_line[0] = in.read();
+
+   // compute fir output
+   T sum = 0;
+   for (int i = 0; i < N; i++)
+       sum += _delay_line[i] * _coeffs[i];
+
+   out.write(sum);
+}
+
+
+
+//Declaration and implementation of template class carrier_sync
+
+template <class T> class carrier_sync : public sc_module {
+
+public:
+  sc_in<T> detect_in;
+  sc_in<T> detect_out;
+  sc_in<bool> clock;
+
+  sc_out<T> out_freq;
+
+  SC_HAS_PROCESS(carrier_sync);
+  carrier_sync(sc_module_name name, T K, T tau, T h);
+  void do_it();
+
+private:
+  const T _K, _a, _h;
+  sc_signal<T> loop_del, f_del;
+};
+
+template <class T> carrier_sync<T> :: carrier_sync (sc_module_name name, T K, T tau, T h): sc_module(name), _K(K), _a(1/tau), _h(h){
+  SC_METHOD(do_it);
+  sensitive << clock.pos();
+}
+
+template <class T> void carrier_sync<T> :: do_it(){
+  
+
+  f_del.write(_K*(detect_in.read()-detect_out.read()) + f_del.read());
+
+  // first order loop filter
+  
+  out_freq.write(_h*(f_del.read()+loop_del.read()*_a));
+  loop_del.write(f_del.read()); 
+}
+
+
+// Declaration and implementation of class NCO
+
+template <class T> class NCO : public sc_module {
+
+public:
+
+	sc_in<T> osr_data_stream;
+	sc_in<bool> clock_12MHz;
+	sc_out<T> siin;
+	sc_out<T> coos;
+
+SC_HAS_PROCESS(NCO);
+        NCO(sc_module_name name, T center_frequency = 0);
+	void do_it();
+private:
+	T teta;
+	T omega0dt;
+};
+
+template <class T> NCO<T> :: NCO (sc_module_name name, T center_frequency): sc_module(name), omega0dt(center_frequency*2*pi/12e6) {
+	SC_METHOD(do_it); sensitive_pos << clock_12MHz; teta=0;
+}
+
+
+template <class T> void NCO<T>::do_it(){
+  teta=osr_data_stream.read() + teta + omega0dt;
+  if(teta>=2*pi) teta=teta-2*pi;
+  coos.write(cos(teta));
+  siin.write(sin(teta));
+}

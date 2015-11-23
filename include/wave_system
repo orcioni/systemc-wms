@@ -1,0 +1,708 @@
+// Wave_system:
+// Copyright (C) 2004-2006 Giorgio Biagetti
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#ifndef WAVE_SYSTEM_H
+#define WAVE_SYSTEM_H
+
+#include "sys/analog_basics"
+#include <cmath>
+#include <new>
+
+template <class T>
+struct nature
+{
+	typedef T wave_type;
+	typedef T dump_type;
+	static const char *across ()  {return "across"; }
+	static const char *through () {return "through";}
+	static void dump_transform (wave_type const &in, dump_type &out) {out = in;}
+	static double abs (wave_type const &val) {return std::abs(val);}
+};
+
+
+// Definition of template class ab_signal_if:
+/*
+	abstract base class for wavesignal interface specification
+*/
+template <class T>
+struct ab_signal_if : virtual sc_core::sc_interface
+{
+	virtual bool poll () const = 0;
+	virtual const T read () const = 0;
+	virtual void write (const T &) = 0;
+	virtual short get_orientation () const = 0;
+	virtual const double &get_normalization () const = 0;
+	virtual const double &get_normalization_sqrt () const = 0;
+};
+
+
+// Definition of template class ab_port:
+/*
+	This is the only kind of port that can be used to access
+	the wavesignal interface. It specifies the normalization parameter
+	used to translate between wave and branch quantities and
+	the orientation of the connection to the underlying channel.
+*/
+template <class T>
+class ab_port : public sc_core::sc_port <ab_signal_if <typename T::wave_type> >
+{
+	typedef ab_signal_if <typename T::wave_type> interface_type;
+public:
+	ab_port () {normalization = 0; orientation = 1;};
+	explicit ab_port (const char *name) : sc_core::sc_port<interface_type>(name) {normalization = 0; orientation = 1;}
+	// interface access:
+	interface_type *operator -> () {check_interface(); return port_interface;}
+	const interface_type *operator -> () const {check_interface(); return port_interface;}
+	// interface binding: (RESERVEVED FOR INTERNAL USE ONLY!)
+	void operator >>= (interface_type *wave) {port_interface = wave;}
+	// normalization and orientation handling:
+	const double &operator <<= (double normalization_value) {return normalization ? normalization : normalization = normalization_value;}
+	operator const double & () const {return normalization;}
+	short operator += (short o) {return orientation *= o;}
+	short operator +  () const  {return orientation;}
+private:
+	void check_interface () const;
+	interface_type *port_interface;
+	double normalization;
+	short orientation;
+};
+
+template <class T> void ab_port<T>::check_interface () const
+{
+	if (port_interface == 0)
+		SC_REPORT_ERROR("WMS", "port is not bound to a wavechannel endpoint");
+}
+
+
+// Definition of template class ab_signal_memory:
+/*
+	This class is used to keep memory of the order of construction
+	of ab_signal_proxy elements so as to allow named binding of
+	ports to channel "slots" for anisotropic channels.
+*/
+class ab_signal_memory
+{
+public:
+	ab_signal_memory () {armed = (*this = state).target && ++state.port_number;}
+	ab_signal_memory (sc_core::sc_interface *p) : target(p) {armed = port_number = 0;}
+	unsigned operator + () const {return port_number;}
+	bool operator == (sc_core::sc_interface *p) const {return armed && target == p;}
+	sc_core::sc_interface *operator -> () const {return target;}
+	void setup () const {state = *this;}
+	static void reset (sc_core::sc_interface *p = 0) {state = p;}
+public:
+	static ab_signal_memory state;
+private:
+	sc_core::sc_interface *target;
+	unsigned port_number;
+	bool armed;
+};
+
+
+// Definition of template class ab_signal_void:
+/*
+	This is just middleware to alert the user of disallowed interface operations on bare (unbound) channels.
+*/
+template <class T>
+class ab_signal_void : public ab_signal_if <typename T::wave_type>
+{
+public:
+	// construction and destruction:
+	explicit
+	 ab_signal_void (double normalization) : default_normalization(normalization) {}
+	~ab_signal_void () {}
+public:
+	// interface:
+	virtual bool poll () const {SC_REPORT_ERROR("WMS", "trying to poll an unspecified port of a wavechannel"); return false;}
+	virtual const typename T::wave_type read () const {SC_REPORT_ERROR("WMS", "trying to read an unspecified port of a wavechannel");return false;}
+	virtual void write (const typename T::wave_type &) {SC_REPORT_ERROR("WMS", "trying to write through an unspecified port of a wavechannel");}
+	virtual const double &get_normalization_sqrt () const {SC_REPORT_ERROR("WMS", "trying to get normalization root of a wavechannel"); return false;}
+	virtual short get_orientation () const {SC_REPORT_ERROR("WMS", "trying to get orientation of a wavechannel"); return false;}
+	virtual const double &get_normalization () const {return default_normalization;}
+protected:
+	const double default_normalization;
+};
+
+
+// Definition of template class ab_signal_proxy:
+/*
+	This class maintains the order of constructions of its objects
+	and cooperates with ab_signal_base in order to allow named "slot" bindings.
+	This is also used to help handle connection polarity (specified by the sign of normalization).
+*/
+template <class T>
+class ab_signal_proxy : public ab_signal_void <T>
+{
+public:
+	// construction and destruction:
+	 ab_signal_proxy (short polarity, ab_signal_memory const &target) : ab_signal_void<T>(polarity), channel(target) {}
+	 ab_signal_proxy (short polarity = +1) : ab_signal_void<T>(polarity) {}
+	~ab_signal_proxy () {}
+	// connection polarity:
+	ab_signal_proxy &operator - () {return * new ab_signal_proxy(-1, channel);}
+	ab_signal_proxy &operator + () {return * this;}
+public:
+	// interface-inherited mandatory stuff:
+	virtual void register_port (sc_core::sc_port_base &port, const char* if_typename);
+	virtual const sc_core::sc_event &default_event () const;
+private:
+	ab_signal_memory channel;
+};
+
+template <class T> inline void ab_signal_proxy<T>::register_port (sc_core::sc_port_base &port, const char* if_typename)
+{
+	if (ab_port <T> *port_pnt = dynamic_cast < ab_port<T> * > (&port)) {
+		ab_port <T> &waveport = *port_pnt;
+		waveport += short(this->default_normalization);
+	}
+	/* the following might not be exception safe... */
+	channel.setup();
+	channel->register_port(port, if_typename);
+	channel.reset();
+}
+
+template <class T> inline const sc_core::sc_event &ab_signal_proxy<T>::default_event () const
+{
+	return channel->default_event();
+}
+
+
+// Definition of template class ab_signal_base:
+/*
+	This is the base class for all kinds of wavechannels.
+*/
+template <class T>
+class ab_signal_base : public ab_signal_void <T>, public sc_core::sc_prim_channel
+{
+public:
+	// construction and destruction:
+	 ab_signal_base (const char* name, double normalization, double abstol, double reltol) : ab_signal_void<T>(normalization), sc_core::sc_prim_channel(name), max_connections(23), tracefile(0), abstol(abstol), reltol(reltol)
+	{
+		// TODO: max_connections in this constructor should be passed in from somewhere...
+		init_waves();
+		ab_signal_memory::reset(this);
+	}
+	~ab_signal_base () {free_waves();}
+	// connection polarity:
+	ab_signal_proxy <T> &operator - () {return * new ab_signal_proxy<T>(-1, this);}
+	ab_signal_proxy <T> &operator + () {return * new ab_signal_proxy<T>(+1, this);}
+public:
+	// interface-inherited mandatory stuff:
+	virtual void register_port (sc_core::sc_port_base &port, const char* if_typename);
+	virtual const sc_core::sc_event &default_event () const {return ab_event;}
+	// tracing:
+	void trace (sc_core::sc_trace_file *tf, const char *name)
+	{
+		tracefile = tf;
+		tracename = name;
+	}
+protected:
+	// member functions:
+	void init_waves ()
+	{
+		connections = 0;
+		waves = (ab_wave *) operator new(max_connections * sizeof (ab_wave));
+	}
+	void free_waves ()
+	{
+		if (!waves) return;
+		for (unsigned j = 0; j < connections; waves[connections - ++j].~ab_wave());
+		operator delete(waves);
+		waves = 0;
+	}
+	// interface-related data members:
+	sc_core::sc_event ab_event;
+	// data members:
+	const double reltol, abstol;
+	const unsigned max_connections;
+	unsigned connections;
+protected:
+	class ab_wave : public ab_signal_if <typename T::wave_type>
+	{
+	public:
+		ab_wave (ab_signal_base *parent_signal, ab_port <T> const &end_point) : parent(parent_signal), endpoint(end_point) {a = b = old = 0; notify = false; normalization_sqrt = sqrt(endpoint);} // TODO: correct initialization
+		virtual bool poll () const {return notify;}
+		virtual const typename T::wave_type read () const {notify = false; return a;}
+		virtual short get_orientation () const {return +endpoint;}
+		virtual const double &get_normalization () const {return endpoint;}
+		virtual const double &get_normalization_sqrt () const {return normalization_sqrt;}
+		virtual void write (const typename T::wave_type &val) {if ((b = val) != old) parent->request_update();}
+//	private:
+		typename T::wave_type fed () const {return b;}
+		void feed (typename T::wave_type const &source)
+		{
+			const double loss = 0.1;
+			// TODO: this seems to work even with a high loss. Why?
+			typename T::wave_type update_a = (source - a) * (1 - loss);
+			if (T::abs(update_a) > T::abs(a) * parent->reltol + parent->abstol) notify = true;
+			if (notify) a += update_a;
+			old = b;
+		}
+		const char *name () const {return endpoint.name();}
+	protected:
+		typename T::wave_type a, b, old;
+		mutable bool notify;
+	private:
+		double normalization_sqrt;
+		ab_signal_base *parent;
+		ab_port <T> const &endpoint;
+	} *waves;
+	// for tracing:
+	std::string tracename;
+	sc_core::sc_trace_file *tracefile;
+};
+
+template <class T> inline void ab_signal_base<T>::register_port (sc_core::sc_port_base &port, const char* if_typename)
+{
+	if (ab_port <T> *port_pnt = dynamic_cast < ab_port<T> * > (&port)) {
+		ab_port <T> &waveport = *port_pnt;
+ 		unsigned number = ab_signal_memory::state == this ? +ab_signal_memory::state : connections;
+		if (number >= max_connections) {
+			SC_REPORT_ERROR("WMS", "trying to bind too many ports to a wavechannel");
+		} // TODO: This function should also check that the same (numbered) slot is not bound twice!
+		waveport <<= this->default_normalization;
+		waveport >>= new(waves + number) ab_wave(this, waveport);
+		++connections;
+	} else {
+		SC_REPORT_ERROR("WMS", "trying to bind a wavechannel to a port of the wrong type");
+	}
+}
+
+
+// Definition of template class ab_signal_uniform:
+/*
+	Scattering junction with uniform topology, i.e., series or paralles connections.
+*/
+template <class T, int sign>
+class ab_signal_uniform : public ab_signal_base <T>
+{
+public:
+	// construction and destruction:
+	 ab_signal_uniform (const char *name, double normalization, double abstol, double reltol) : ab_signal_base<T>(name, normalization, abstol, reltol) {}
+	~ab_signal_uniform () {}
+public:
+	// interface:
+	virtual const typename T::wave_type read () const;
+	virtual const typename T::wave_type read (int port) const;
+	// channel duties:
+	virtual void update ();
+	virtual void end_of_elaboration ();
+private:
+	double total_normalization;
+	double beta[6];
+	// for tracing:
+	typename T::dump_type maintrace, portraces[6];
+};
+
+template <class T, int sign> inline const typename T::wave_type ab_signal_uniform<T, sign>::read () const
+{
+	// TODO: this is currently unused, BTW, shouldn't it use the old value of b instead of fed?
+	typename T::wave_type sum = 0;
+	for (unsigned j = 0; j < this->connections; ++j) sum += this->waves[j].fed() * beta[j];
+	return sum * (double(sign) * total_normalization);
+}
+
+template <class T, int sign> inline const typename T::wave_type ab_signal_uniform<T, sign>::read (int port) const
+{
+	// TODO: this is currently unused, BTW, shouldn't it use the old value of b instead of fed?
+	return read() * (beta[port] * beta[port]) + this->waves[port].fed() * (-2.0 * sign * beta[port]);
+}
+
+template <class T, int sign> inline void ab_signal_uniform<T, sign>::update ()
+{
+	typename T::wave_type sum = 0;
+	for (unsigned j = 0; j < this->connections; ++j)
+		sum += this->waves[j].fed() * beta[j];
+	sum *= total_normalization;
+	T::dump_transform(sum * double(sign), maintrace);
+	for (unsigned j = 0; j < this->connections; ++j) {
+		typename T::wave_type wave = (sum * beta[j] - this->waves[j].fed()) * double(sign);
+		this->waves[j].feed(wave);
+		wave -= this->waves[j].fed() * double(sign);
+		T::dump_transform(wave * beta[j], portraces[j]);
+	}
+	// TODO: Should notify only really changed ports? It does not seem to be possible:
+	// When a process depends on an event through a static sensitivity list, the binding is
+	// done at the end of the elaboration via a call to the default_event() method of the interface
+	// the port is bound to. From inside the interface there is no way to know from which port
+	// the call cames, so each one must be notified. It may be possible to overcame this problem
+	// using named port bindings inside the channel, but doing so only for this reason does not
+	// make much of a sense. The point here is that for this kind of channels to be easily
+	// implemented the (C++) interface between ports and interfaces should support passing
+	// information about the caller at the lower level. But it would harm performances.
+	// The only possible compromise solution seems to be inserting a hook inside
+	// sc_port_base::complete_binding() so that event finding could be delegated to derived classes.
+	//
+	// In order to make things work without modifying the SystemC kernel, every connected ports
+	// get notified, but there is a poll() method that can be called to know if there was a real
+	// reason (a substantial change in incident wave value) to be notified.
+	//
+	this->ab_event.notify(sc_core::SC_ZERO_TIME);
+}
+
+template <class T, int sign> inline void ab_signal_uniform<T, sign>::end_of_elaboration ()
+{
+	total_normalization = 0;
+	for (unsigned j = 0; j < this->connections; ++j) {
+		double root = pow(this->waves[j].get_normalization(), -0.5 * sign);
+		total_normalization += root * root;
+		beta[j] = root * this->waves[j].get_orientation();
+	}
+	total_normalization = 2 / total_normalization;
+
+	if (!this->tracefile) return;
+	const char *common_name = sign > 0 ? T::across() : T::through();
+	const char *others_name = sign < 0 ? T::across() : T::through();
+	sc_trace(this->tracefile, maintrace, this->tracename + "_" + common_name + "_");
+	T::dump_transform(0, maintrace);
+	for (int j = 0; j < this->connections; T::dump_transform(0, portraces[j++]))
+		sc_trace(this->tracefile, portraces[j], this->tracename + "(" + this->waves[j].name() + ")_" + others_name + "_");
+}
+
+
+// Definition of template class ab_signal_scatter:
+/*
+	Scattering junction for arbitrary topologies.
+	The helper class scatter_junction is used to prepare
+	the scattering matrix from Kirchhoff's equations.
+*/
+
+template <class T> class ab_signal_scatter;
+
+class scatter_junction
+{
+public:
+	scatter_junction ();
+	template <class T> struct channel {typedef ab_signal_scatter <T> base;};
+protected:
+	virtual const short *incidence_matrix (int &across, int &through) const = 0;
+	int compute_scattering (double const *norms);
+	enum {max_dim = 23};
+	double scatter[max_dim][max_dim];
+};
+
+template <class T>
+class ab_signal_scatter : public ab_signal_base <T>, virtual scatter_junction
+{
+public:
+	// construction and destruction:
+	 ab_signal_scatter (const char *name, double normalization, double abstol, double reltol) : ab_signal_base<T>(name, normalization, abstol, reltol) {}
+	~ab_signal_scatter () {}
+public:
+	// interface:
+	/* no interface exposed */
+	// channel duties:
+	virtual void update ();
+	virtual void end_of_elaboration ();
+private:
+	// tracing:
+	typename T::dump_type across_traces[max_dim], through_traces[max_dim];
+};
+
+template <class T> inline void ab_signal_scatter<T>::update ()
+{
+	for (unsigned j = 0; j < this->connections; ++j) {
+		typename T::wave_type wave = 0;
+		for (unsigned i = 0; i < this->connections; ++i)
+			wave += scatter[i][j] * this->waves[i].fed();
+		this->waves[j].feed(wave);
+		// TODO: disable tracing when not needed:
+		T::dump_transform((wave + this->waves[j].fed()) * this->waves[j].get_normalization_sqrt(), across_traces[j]);
+		T::dump_transform((wave - this->waves[j].fed()) / this->waves[j].get_normalization_sqrt(), through_traces[j]);
+	}
+	this->ab_event.notify(sc_core::SC_ZERO_TIME);
+}
+
+template <class T> inline void ab_signal_scatter<T>::end_of_elaboration ()
+{
+	double norms[max_dim];
+	for (unsigned i = 0; i < this->connections; ++i)
+		norms[i] = this->waves[i].get_normalization_sqrt() * this->waves[i].get_orientation();
+	for (unsigned i = this->connections; i < max_dim; norms[i++] = 1);
+	if (compute_scattering(norms) != this->connections)
+		SC_REPORT_ERROR("WMS", "scatter junction number of connections does not match stated connection topology");
+	if (!this->tracefile) return;
+	for (unsigned j = 0; j < this->connections; ++j) {
+		char num[4];
+		snprintf(num, sizeof num, "#%d", j);
+		T::dump_transform(0,  across_traces[j]);
+		T::dump_transform(0, through_traces[j]);
+		sc_trace(this->tracefile,  across_traces[j], this->tracename + num + "(" + this->waves[j].name() + ") [" + T::across()  + "]");
+		sc_trace(this->tracefile, through_traces[j], this->tracename + num + "(" + this->waves[j].name() + ") [" + T::through() + "]");
+	}
+}
+
+
+// Definition of commodity channel topologies:
+
+struct isotropic {template <class T> struct ports {};};
+
+struct parallel : isotropic {template <class T> struct channel {typedef ab_signal_uniform <T, +1> base;};};
+struct series   : isotropic {template <class T> struct channel {typedef ab_signal_uniform <T, -1> base;};};
+struct bridge   : virtual scatter_junction
+{
+	template <class T> struct ports {ab_signal_proxy <T> nw, ws, ns, we, ne, es;};
+	const short *incidence_matrix (int &across, int &through) const
+	{
+		static const short kirchhoffs[] = {
+			+1, +1, -1,  0,  0,  0,
+			 0,  0, +1,  0, -1, -1,
+			+1,  0,  0, +1, -1,  0,
+			+1,  0, +1,  0, +1,  0,
+			 0, +1, +1,  0,  0, +1,
+			-1, +1,  0, +1,  0,  0,
+		};
+		across = 3;
+		through = 3;
+		return kirchhoffs;
+	}
+};
+
+struct half_bridge   : virtual scatter_junction
+{
+	template <class T> struct ports {ab_signal_proxy <T> mains, up, down, load;};
+	const short *incidence_matrix (int &across, int &through) const
+	{
+		static const short kirchhoffs[] = {
+			+1, -1, -1,  0,
+			 0,  0, +1, -1,
+			+1, +1,  0,  0,
+			 0, +1, -1, -1,
+		};
+		across = 2;
+		through = 2;
+		return kirchhoffs;
+	}
+};
+
+struct star    : isotropic, virtual scatter_junction
+{
+	const short *incidence_matrix (int &across, int &through) const
+	{
+		static const short kirchhoffs[] = {
+			+1, -1,  0,  0,  0,  0,
+			 0, +1, -1,  0,  0,  0,
+			 0,  0, +1, -1,  0,  0,
+			 0,  0,  0, +1, -1,  0,
+			 0,  0,  0,  0, +1, -1,
+			+1, +1, +1, +1, +1, +1,
+		};
+		across = 5;
+		through = 1;
+		return kirchhoffs;
+	}
+};
+
+
+// Definition of commodity template ab_signal:
+/*
+	This is the only signal type the user should instantiate:
+	T is the desired signal nature,
+	ConnectionMode the desired connection topology.
+*/
+template <class T, class ConnectionMode>
+struct ab_signal : ConnectionMode, ConnectionMode::template channel<T>::base, private ConnectionMode::template ports <T>
+{
+	explicit ab_signal (double normalization = 1, double abstol = 1e-8, double reltol = 0) : ConnectionMode::template channel<T>::base(sc_core::sc_gen_unique_name("wave"), normalization, abstol, reltol) {ab_signal_memory::reset();}
+	explicit ab_signal (const char *name, double normalization = 1, double abstol = 1e-8, double reltol = 0) : ConnectionMode::template channel<T>::base(name, normalization, abstol, reltol) {ab_signal_memory::reset();}
+	typename ConnectionMode::template ports <T> *operator -> () {return this;}
+};
+
+
+
+// Definition of commodity template wave_module:
+
+template <int n = 0, class T1 = void, class T2 = void, class T3 = void, class T4 = void, class T5 = void> class wave_module;
+
+template <int n, class T>
+class wave_module <n, T> : public sc_core::sc_module, virtual protected activated_module
+{
+public:
+	class {
+		ab_port <T> ports[n];
+	public:
+		ab_port <T> const &operator () (int i) const {return ports[i - 1];}
+		ab_port <T> const &operator [] (int i) const {return ports[i];} // deprecated
+		ab_port <T> &operator () (int i) {return ports[i - 1];}
+		ab_port <T> &operator [] (int i) {return ports[i];} // deprecated
+	} port;
+	void sense ()
+	{
+		for (int i = 0; i < n; ++i)
+			if (port[i]->poll()) {
+				activation.notify();
+				break;
+			}
+	}
+	SC_HAS_PROCESS(wave_module);
+	wave_module ()
+	{
+		SC_METHOD(sense);
+		for (int i = 0; i < n; ++i)
+			sensitive << port[i];
+	}
+};
+
+// Specialization for single-port objects:
+template <class T>
+class wave_module <1, T> : public sc_core::sc_module, virtual protected activated_module
+{
+public:
+	ab_port <T> port;
+	void sense ()
+	{
+		if (port->poll()) activation.notify();
+	}
+	SC_HAS_PROCESS(wave_module);
+	wave_module ()
+	{
+		SC_METHOD(sense);
+		sensitive << port;
+	}
+};
+
+// Specialization for objects with custom ports:
+
+struct proxy_port_base
+{
+	virtual bool poll () const = 0;
+};
+
+template <class T> struct proxy_port : proxy_port_base
+{
+	proxy_port (ab_port <T> &port) : port(port) {}
+	bool poll () const {return port->poll();}
+	ab_port <T> &port;
+};
+
+template <>
+class wave_module <> : public sc_core::sc_module, virtual protected activated_module
+{
+	enum {maxports = 23};
+	typedef nature <double> default_type;
+	proxy_port <default_type> *ports;
+	int usedports;
+	void make_sense () {SC_METHOD(sense);}
+protected:
+	class multisense {
+		wave_module *parent;
+	public:
+		multisense (wave_module *parent) : parent(parent) {}
+		template <class T> multisense &operator << (ab_port <T> &port)
+		{
+			if (!parent->usedports) parent->make_sense();
+			if (parent->usedports == parent->maxports) return *this; // TODO: report error!
+			if (sizeof (proxy_port<T>) != sizeof (proxy_port<default_type>)) return *this; // TODO: report error!
+			parent->sensitive << port;
+			new(parent->ports + parent->usedports++) proxy_port<T>(port);
+			return *this;
+		}
+	} waves;
+	friend class wave_module::multisense;
+public:
+	template <class T> ab_port <T> &port (int i)
+	{
+		proxy_port <T> *p = dynamic_cast <proxy_port <T> *> ((proxy_port_base *) (ports + (i - 1)));
+		if (!p); // TODO: report error!
+		return p->port;
+	}
+	template <class T> ab_port <T> const &port (int i) const
+	{
+		proxy_port <T> const *p = dynamic_cast <proxy_port <T> const *> ((proxy_port_base const *) (ports + (i - 1)));
+		if (!p); // TODO: report error!
+		return p->port;
+	}
+	void sense ()
+	{
+		for (int i = 0; i < usedports; ++i) {
+			proxy_port_base *p = ports + i;
+			if (p->poll()) {
+				activation.notify();
+				break;
+			}
+		}
+	}
+	SC_HAS_PROCESS(wave_module);
+	wave_module () : waves(this)
+	{
+		usedports = 0;
+		ports = (proxy_port <default_type> *) operator new(maxports * sizeof (proxy_port <default_type>));
+	}
+};
+
+template <int n, class T1, class T2>
+class wave_module <n, T1, T2> : public wave_module <>
+{
+	ab_port <T1> port_1_;
+	ab_port <T2> port_2_;
+public:
+	wave_module () {waves << port_1_ << port_2_;}
+};
+
+template <int n, class T1, class T2, class T3>
+class wave_module <n, T1, T2, T3> : public wave_module <>
+{
+	ab_port <T1> port_1_;
+	ab_port <T2> port_2_;
+	ab_port <T3> port_3_;
+public:
+	wave_module () {waves << port_1_ << port_2_ << port_3_;}
+};
+
+template <int n, class T1, class T2, class T3, class T4>
+class wave_module <n, T1, T2, T3, T4>: public wave_module <>
+{
+	ab_port <T1> port_1_;
+	ab_port <T2> port_2_;
+	ab_port <T3> port_3_;
+	ab_port <T4> port_4_;
+public:
+	wave_module () {waves << port_1_ << port_2_ << port_3_ << port_4_;}
+};
+
+template <int n, class T1, class T2, class T3, class T4, class T5>
+class wave_module : public wave_module <>
+{
+	ab_port <T1> port_1_;
+	ab_port <T2> port_2_;
+	ab_port <T3> port_3_;
+	ab_port <T4> port_4_;
+	ab_port <T5> port_5_;
+public:
+	wave_module () {waves << port_1_ << port_2_ << port_3_ << port_4_<< port_5_;}
+};
+
+template <class T> class ab_connector : public sc_core::sc_module
+{
+public:
+	SC_HAS_PROCESS(ab_connector);
+	ab_connector (sc_core::sc_module_name name, double normalization = 1)
+	{
+		left <<= normalization;
+		right <<= normalization;
+		SC_METHOD(flowright); sensitive << left;
+		SC_METHOD(flowleft); sensitive << right;
+	}
+private:
+	ab_port <T> left, right;
+	void flowright () {if (left->poll()) right->write(left->read());}
+	void flowleft () {if (right->poll()) left->write(right->read());}
+};
+
+
+#endif // !defined(WAVE_SYSTEM_H)

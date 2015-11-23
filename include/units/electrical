@@ -1,0 +1,87 @@
+// electrical units
+// Copyright (C) 2006 Giorgio Biagetti and Simone Orcioni
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#ifndef ELECTRICAL_H
+#define ELECTRICAL_H
+
+/*
+Following units conflict with armadillo
+#define V   *1
+#define A   *1
+#define F   *1
+#define H   *1
+#define TA  *1e+12
+*/
+
+#define aV  *1e-18
+#define fV  *1e-15
+#define pV  *1e-12
+#define uV  *1e-6
+#define mV  *1e-3
+#define kV  *1e+3
+#define MV  *1e+6
+#define GV  *1e+9
+#define TV  *1e+12
+
+#define aA  *1e-18
+#define fA  *1e-15
+#define pA  *1e-12
+#define uA  *1e-6
+#define mA  *1e-3
+#define kA  *1e+3
+#define MA  *1e+6
+#define GA  *1e+9
+
+#define aHz  *1e-18
+#define fHz  *1e-15
+#define pHz  *1e-12
+#define uHz  *1e-6
+#define mHz  *1e-3
+#define Hz   *1
+#define kHz  *1e+3
+#define MHz  *1e+6
+#define GHz  *1e+9
+#define THz  *1e+12
+
+#define aF  *1e-18
+#define fF  *1e-15
+#define pF  *1e-12
+#define nF  *1e-9
+#define uF  *1e-6
+#define mF  *1e-3
+
+#define aH  *1e-18
+#define fH  *1e-15
+#define pH  *1e-12
+#define nH  *1e-9
+#define uH  *1e-6
+#define mH  *1e-3
+
+#define aohm  *1e-18
+#define fohm  *1e-15
+#define pohm  *1e-12
+#define uohm  *1e-6
+#define mohm  *1e-3
+#define ohm   *1
+#define kohm  *1e+3
+#define Mohm  *1e+6
+#define Gohm  *1e+9
+#define Tohm  *1e+12
+
+#endif
+

@@ -1,0 +1,35 @@
+// general constant
+// Copyright (C) 2006 Simone Orcioni
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#ifndef CONSTANTS_H
+#define CONSTANTS_H
+
+const double c  = 299792458;           //velocity of light
+const double pi = 3.1415926535897932384626433832795;
+const double u0 = 4*pi*1e-07;          //permeability of vacuum
+const double e0 = 1/(u0*c*c);        //permettivity of vacuum
+const double g  = 6.67259e-11;         //Newtonian constant of gravitation
+const double h  = 6.6260755e-34;       //Plank constant
+const double e  = 1.60217733e-19;      //elementary charge
+const double phi0 = h/(2*e);           //magnetic flux quantum
+const double me = 9.1093897e-31;       //electron mass
+const double mp = 1.6726231e-27;       //proton mass
+const double Na = 6.0221367e+23;       //Avogadro constant
+const double k  = 1.380658e-23;        //Boltzmann constant
+
+#endif

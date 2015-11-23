@@ -1,0 +1,95 @@
+// AnalogSys.h
+// Copyright (C) 2003 Giorgio Biagetti and Marco Caldari
+// Copyright (C) 2004-2006 Giorgio Biagetti
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#ifndef ANALOGSYS_H
+#define ANALOGSYS_H
+
+#include "sys/analog_basics"
+
+#define ODE_METHOD 8
+// May be 1, 2, 4, or 8, but 2 does not seem to work well!
+// Please see analog_system.cpp for ODE_METHOD definitions.
+
+#if ODE_METHOD==16 // bulirsh-stoer method
+#define DBL_MEMCPY(dest,src,n) memcpy((dest),(src),(n)*sizeof(double))
+#define DBL_ZERO_MEMSET(dest,n) memset((dest),0,(n)*sizeof(double))
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_matrix.h>
+#include <gsl/gsl_odeiv.h>
+#include <gsl/gsl_math.h>
+#include <gsl/gsl_linalg.h>
+#endif
+
+class analog_module : virtual protected activated_module
+{
+	static const double multistep_a[];
+	static const double multistep_b[];
+	static const double multistep_c[];
+	static const int multistep_order_a;
+	static const int multistep_order_b;
+	static const int multistep_order_c;
+	double dt_min, dt_max, dt_factor;
+	double dt_aux;
+	double *direction;
+	double *abstol;
+	double reltol;
+	double mintol;
+	const int size;
+#if ODE_METHOD==16 // bulirsh-stoer method
+	double h;
+	const gsl_odeiv_step_type * K;
+	gsl_odeiv_step * s;
+	gsl_odeiv_control * c;
+	gsl_odeiv_evolve * e;
+	int func (double t, const double y[], double f[]);
+	int jac (double t, const double y[], double *dfdy, double dfdt[]);
+	int bsimp_apply (void *vstate, size_t dim, double t, double h, double y[], double yerr[], const double dydt_in[], double dydt_out[]);
+	int bsimp_step_local (void *vstate, size_t dim, const double t0, const double h_total, const unsigned int n_step, const double y[],
+                 		     const double yp[], const double dfdt[], const gsl_matrix * dfdy, double y_out[]);
+	void poly_extrap (gsl_matrix * d, const double x[], const unsigned int i_step, const double x_i, const double y_i[],
+             		  double y_0[], double y_0_err[], double work[], const size_t dim);
+	void compute_weights (const double y[], double w[], size_t dim);
+	int gsl_odeiv_evolve_apply (gsl_odeiv_evolve * e, gsl_odeiv_control * con, gsl_odeiv_step * step, double *t, double t1, double *h, double y[]);
+#endif
+
+protected:
+	explicit analog_module (int size, double min = sc_core::sc_get_time_resolution().to_seconds(), double max = 0);
+	~analog_module ();
+	virtual void field (double *direction) const =0;
+	bool step ();
+	bool set_steplimits_used;
+	double dt;
+	double *state;
+	void ic(double const *icvect);
+	void ic(double icval);
+
+public:
+	void set_steplimits (double min, double max);
+	void set_tolerances (double const *abstol, double reltol, double mintol);
+	void set_tolerances (double abstol, double reltol, double mintol);
+
+
+#if ODE_METHOD==16 // bulirsh-stoer method
+	virtual void jacobian (gsl_matrix * m, double dfdt[]) const {};
+	void set_control_param (double abstol, double reltol, double a_y, double a_dydt);
+	void set_step (double h);
+#endif
+};
+
+#endif

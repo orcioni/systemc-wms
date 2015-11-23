@@ -1,0 +1,296 @@
+// nonlinear:
+// Copyright (C) 2006 Simone Orcioni, Giorgio Biagetti
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+
+#ifndef NONLINEAR_H
+#define NONLINEAR_H
+
+#include "../wave_system"
+
+
+
+// Library of nonlinear circuits:
+//
+//
+template <class T> struct rectifier; // ideal rectifier one port
+template <class T> struct th_rectifier;  // rectifier with threshold
+template <class T> struct rectifier_2s; // ideal rectifier two port
+template <class T> struct ideal_rectifier; // ideal bridge rectifier
+template <class T> struct controlled_switch; // controlled switch one port
+template <class T> struct controlled_switch_rect; // controlled switch one port
+template <class T> struct controlled_switch_2s; // controlled switch 2 port
+template <class T> struct controlled_switch_rect_2s; // controlled switch 2 port with rectifier
+
+//	Declaration of class rectifier:
+template <class T1>
+struct rectifier : wave_module<1, T1>
+{
+    SC_HAS_PROCESS(rectifier);
+    rectifier (sc_core::sc_module_name name);
+private:
+	void calculus ();
+};
+
+//	Implementation of class rectifier:
+
+template <class T> rectifier<T>::rectifier (sc_core::sc_module_name name) 
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;
+	
+}
+
+template <class T> void rectifier<T>::calculus ()
+{
+
+    double a = this->port->read();
+    if (a>0)
+	this->port->write(-a);
+    else 
+	this->port->write(a);
+
+}
+
+//	Declaration of class th_rectifier:
+template <class T1>
+struct th_rectifier : wave_module<1, T1>
+{
+    SC_HAS_PROCESS(th_rectifier);
+    th_rectifier (sc_core::sc_module_name name, double threshold);
+private:
+	void calculus ();
+        double Ag;
+};
+
+//	Implementation of class th_rectifier:
+
+template <class T> th_rectifier<T>::th_rectifier (sc_core::sc_module_name name, double threshold) : Ag(threshold)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;
+	
+}
+
+template <class T> void th_rectifier<T>::calculus ()
+{
+    double sqrt_P0 = this->port->get_normalization_sqrt();
+    double a = this->port->read();
+    if (a< Ag/(2*sqrt_P0))
+	this->port->write(a);
+    else 
+	this->port->write((Ag/sqrt_P0)-a);
+
+}
+
+//	Declaration of rectifier_two_ports
+template <class T1> 
+struct rectifier_2s : wave_module<2, T1>
+{	
+	SC_HAS_PROCESS(rectifier_2s);
+	rectifier_2s (sc_core::sc_module_name name);
+private:
+	void calculus ();
+};
+
+//	Implementation of class rectifier_two_ports:
+
+template <class T> rectifier_2s<T>::rectifier_2s (sc_core::sc_module_name name)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;
+	this->port[0] <<= this->port[1] <<= 1;
+}
+
+template <class T> void rectifier_2s<T>::calculus ()
+{
+	// only works if normalization resistances are the same for both ports...
+	double a1 = this->port[0]->read(), a2 = this->port[1]->read();
+	bool on_d = a2 > a1;
+	this->port[0]->write(on_d ? a1 : a2 );
+	this->port[1]->write(on_d ? a2 : a1 );
+}
+
+//	Declaration of ideal_rectifier
+
+template <class T1>     
+struct ideal_rectifier : wave_module<2, T1>
+{	// Ideal Graetz' bridge
+	SC_HAS_PROCESS(ideal_rectifier);
+	ideal_rectifier (sc_core::sc_module_name name);
+private:
+	void calculus ();
+};
+
+// Implementation of class ideal_rectifier:
+
+template <class T> ideal_rectifier<T>::ideal_rectifier (sc_core::sc_module_name name)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;
+	this->port[0] <<= this->port[1] <<= 1;
+}
+
+template <class T> void ideal_rectifier<T>::calculus ()
+{
+	// only works if normalization resistances are the same for both ports...
+	double a0 = this->port[0]->read(), a1 = this->port[1]->read();
+	bool on_d = a0 > a1, on_i = a0 < -a1;
+	this->port[0]->write(on_d ? a1 : on_i ? -a1 : a0);
+	this->port[1]->write(on_d ? a0 : on_i ? -a0 : a1);
+}
+
+
+//	Declaration of controlled_switch one port
+
+template <class T> 
+struct controlled_switch : wave_module<1, T>
+{	
+        SC_HAS_PROCESS(controlled_switch);
+        controlled_switch (sc_core::sc_module_name name, double PON =0);
+	sc_core::sc_in <bool> control;
+private:
+        void calculus ();
+        double Pon, Poff;
+};
+
+
+// Implementation of class controlled_switch one port:
+
+template <class T> controlled_switch<T>::controlled_switch (sc_core::sc_module_name name, double PON):Pon(PON)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation << control;
+	this->port <<= 1;
+}
+
+template <class T> void controlled_switch<T>::calculus ()
+{
+
+	typename T::wave_type a = this->port->read();
+	bool switch_on = control->read();
+	this->port->write(switch_on ? -a : a);
+
+	//double P0 = this->port->get_normalization();
+	// TODO: modify introducing Pon e Poff
+	//
+	//this->port->write(switch_on ? -a*(Pon-P0)/(Pon+P0) : a);
+
+}
+
+
+
+//	Declaration of controlled_switch_rect one port
+
+template <class T> 
+struct controlled_switch_rect : wave_module<1, T>
+{	
+        SC_HAS_PROCESS(controlled_switch_rect);
+	controlled_switch_rect (sc_core::sc_module_name name, double PON=0);
+	sc_core::sc_in <bool> control;
+private:
+	void calculus ();
+        double Pon;
+};
+
+
+// Implementation of class controlled_switch_rect one port:
+
+template <class T> controlled_switch_rect<T>::controlled_switch_rect (sc_core::sc_module_name name, double PON):Pon(PON)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation << control;
+	this->port <<= 1;
+}
+
+template <class T> void controlled_switch_rect<T>::calculus ()
+{
+
+	double a = this->port->read();
+//	double P0 = this->port->get_normalization(); 
+	bool rectifier_on = a>0, switch_on = control->read();
+	bool on = rectifier_on || switch_on;
+	this->port->write(on ? -a : a);
+	//this->port->write(on ? -a*(Pon-P0)/(Pon+P0) : a);
+}
+
+
+//	Declaration of controlled_switch 2 ports
+
+template <class T1> 
+struct controlled_switch_2s : wave_module<2, T1>
+{	
+	SC_HAS_PROCESS(controlled_switch_2s);
+	controlled_switch_2s (sc_core::sc_module_name name);
+	sc_core::sc_in <bool> control;
+private:
+	void calculus ();
+};
+
+
+// Implementation of class controlled_switch 2 ports:
+
+template <class T> controlled_switch_2s<T>::controlled_switch_2s (sc_core::sc_module_name name)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation << control;
+	this->port[0] <<= this->port[1] <<= 1;
+}
+
+template <class T> void controlled_switch_2s<T>::calculus ()
+{
+	// only works if normalization resistances are the same for both ports...
+
+	typename T::wave_type a1 = this->port[0]->read(), a2 = this->port[1]->read();
+	bool switch_on = control->read();
+	this->port[0]->write(switch_on ? a2 : a1);
+	this->port[1]->write(switch_on ? a1 : a2);
+}
+
+
+// Declaration of class controlled_switch_rect_2s:
+
+template <class T> 
+struct controlled_switch_rect_2s : wave_module<2, T>
+{	// Ideal switch with integrated ideal diode
+	SC_HAS_PROCESS(controlled_switch_rect_2s);
+	controlled_switch_rect_2s (sc_core::sc_module_name name);
+	sc_core::sc_in <bool> control;
+private:
+	void calculus ();
+};
+
+// Implementation of class controlled_switch_2s:
+
+template <class T> controlled_switch_rect_2s<T>::controlled_switch_rect_2s (sc_core::sc_module_name name)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation << control;
+	this->port[0] <<= this->port[1] <<= 1;
+}
+
+template <class T> void controlled_switch_rect_2s<T>::calculus ()
+{
+	// only works if normalization resistances are the same for both ports...
+	double a0 = this->port[0]->read(), a1 = this->port[1]->read();
+	bool rectifier_on = a0 > a1, switch_on = control->read();
+	bool on = rectifier_on || switch_on;
+	this->port[0]->write(on ? a1 : a0);
+	this->port[1]->write(on ? a0 : a1);
+}
+
+#endif // NONLINEAR_H

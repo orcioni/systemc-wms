@@ -1,0 +1,62 @@
+// decibel: logarithmic units helper classes and macros
+// Copyright (C) 2008 Giorgio Biagetti
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#ifndef DECIBEL_H
+#define DECIBEL_H
+
+#include <cmath>
+
+// Macros and helper classes for expressing constants in decibel:
+
+#define dB  %decibel()
+#define dBm %decibel(-30)
+
+struct scatter
+{
+	scatter (double x) {value = x;}
+	operator double () const {return value;}
+private:
+	double value;
+};
+
+class decibel
+{
+public:
+	decibel (double x = 0) {value = x;}
+	operator double  () const {return pow(10, value / 10);}
+	operator scatter () const {return pow(10, value / 20);}
+	decibel operator += (decibel const &other) {value += other.value; return *this;}
+	decibel operator +  (decibel const &other) const {decibel result = *this; return result += other;}
+private:
+	double value;
+};
+
+template <class linear> // "linear" is either "scatter" or "double"
+linear operator + (linear const &base, decibel const &scale)
+{
+	linear x = scale;
+	return base * double(x);
+}
+
+decibel operator % (double lhs, decibel const &rhs)
+{
+	decibel result = rhs;
+	return result += lhs;
+}
+
+#endif

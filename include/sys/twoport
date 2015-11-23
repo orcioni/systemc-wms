@@ -1,0 +1,836 @@
+// twoport:
+// Copyright (C) 2004-2014 Giorgio Biagetti and Simone Orcioni
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+//
+// The names are referred to the through quantity
+// The state variables are charges and fluxes
+
+
+#ifndef TWOPORT_H
+#define TWOPORT_H
+
+
+//	Declaration of class DsIp_ladder
+
+template <class T>
+struct DsIp_ladder : wave_module<2, T>, analog_module
+{
+	SC_HAS_PROCESS(DsIp_ladder);
+	DsIp_ladder (sc_core::sc_module_name name, double s_derivative, double p_integrative);
+public:
+	void ics(double ICD, double ICI);
+private:
+	void calculus ();
+	void field (double *var) const;
+	const double I,D;
+};
+
+//	Imnplementation of class DsIp_ladder
+
+template <class T> DsIp_ladder<T>::DsIp_ladder(sc_core::sc_module_name name, double s_derivative, double p_integrative):analog_module(2,sqrt(p_integrative*s_derivative)/100,sqrt(p_integrative*s_derivative)/10),I(p_integrative),D(s_derivative)
+{
+	SC_THREAD(calculus);
+this->port[0] <<= 5;
+this->port[1] <<= 5;
+}
+
+
+template <class T> void DsIp_ladder<T>::ics(double ICD, double ICI)
+{
+	double ICS[2] = {D*ICD, I*ICI};
+	this->ic(ICS);
+}
+
+template <class T> void DsIp_ladder<T>::field (double *var) const
+{
+	const double sqrt_R1 = this->port[0]->get_normalization_sqrt();
+	const double R1 = this->port[0]->get_normalization();
+	const double sqrt_R2 = this->port[1]->get_normalization_sqrt();
+	const double R2 = this->port[1]->get_normalization();
+
+	var[0] = state[1]/D + (2*this->port[1]->read())/sqrt_R2 - state[0]/(R2*I);
+	var[1] = 2*this->port[0]->read()*sqrt_R1-(R1/D)*state[1]-(state[0])/I;
+}
+
+
+template <class T> void DsIp_ladder<T>::calculus ()
+{
+	const double sqrt_R1 = this->port[0]->get_normalization_sqrt();
+	const double sqrt_R2 = this->port[1]->get_normalization_sqrt();
+	while (step()) {
+		this->port[0]->write(this->port[0]->read()-(sqrt_R1/D)*state[1]);
+		this->port[1]->write(-this->port[1]->read()+state[0]/(sqrt_R2*I));
+	}	
+}
+
+//	Declaration of class Ps_2s
+
+template <class T>
+struct Ps_2s : wave_module<2, T>
+{
+  SC_HAS_PROCESS(Ps_2s);
+  Ps_2s (sc_core::sc_module_name name, double proportional_element);
+
+  private:
+  void calculus ();
+  const double P;
+};
+
+//	Implementation of class Pseries_2port_series  with equal norm. resistance
+
+template <class T> Ps_2s<T>::Ps_2s (sc_core::sc_module_name name, double proportional_element) : P(proportional_element)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;	
+	this->port[0] <<= 5;
+	this->port[1] <<= 5;
+}
+
+template <class T> void Ps_2s<T>::calculus ()
+{
+  const double Pn = P / this->port[0]->get_normalization();
+  typename T::wave_type a1 = this->port[0]->read();
+  typename T::wave_type a2 = this->port[1]->read();
+
+  this->port[0]->write(Pn*a1/(2+Pn) + 2.0*a2/(2+Pn));
+  this->port[1]->write(2.0*a1/(2+Pn) + Pn*a2/(2+Pn));
+}
+
+
+//	Declaration of class PD_series_2_ports
+
+template <class T>
+struct PDs_2s : wave_module<2, T>, analog_module
+{
+  SC_HAS_PROCESS(PDs_2s);
+  PDs_2s (sc_core::sc_module_name name, double proportional_element, double derivative_element
+// double P0 = 1
+);
+
+public:
+	void ics(double IC);
+  private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, D;
+};
+
+
+//	Implementation of class PD_series_2_ports with equal norm. resistance
+
+template <class T> PDs_2s<T>::PDs_2s(sc_core::sc_module_name name, double proportional_element, double derivative_element) : analog_module(1),
+P(proportional_element), D(derivative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	this->port[0]<<=50;
+	this->port[1]<<=50;
+}
+
+
+template <class T> void PDs_2s<T>::ics(double IC)
+{
+	this->ic(D*IC);
+}
+
+template <class T> void PDs_2s<T>::field (double *var) const
+{
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+  var[0] = (2 * sqrt_P0 * (this->port[0]->read()-this->port[1]->read()) - state[0] * (2*P0+P) / D) ;
+}
+
+
+template <class T> void PDs_2s<T>::calculus ()
+{
+        const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		const double tau = D/this->port[0]->get_normalization();
+		set_steplimits(tau/100,tau/10);
+	}
+	while (step()) {
+	  this->port[0]->write((this->port[0]->read() - state[0] * sqrt_P0 / D));
+	  this->port[1]->write((this->port[1]->read() + state[0] * sqrt_P0 / D));
+	}
+}
+
+
+//	Declaration of class PDI_parallel_2_ports
+
+template <class T1>
+struct PDIp_2p : wave_module<2, T1>, analog_module
+{
+  SC_HAS_PROCESS(PDIp_2p);
+  PDIp_2p (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element
+//double P0 = 1
+);
+public:
+	void ics(double ICD, double ICI);
+private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, D, I;
+};
+
+//	Implementation of class PDI_parallel_2_ports
+
+template <class T> PDIp_2p<T>::PDIp_2p (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element
+//double P0
+) : analog_module(2, sqrt(derivative_element*integrative_element)/100, sqrt(derivative_element*integrative_element)/10),P(proportional_element), D(derivative_element), I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	//	port[0](P0);
+	//	port[1](P0);
+}
+
+template <class T> void PDIp_2p<T>::ics(double ICD, double ICI)
+{
+	double ICS[2] = {D*ICD, I*ICI};
+	this->ic(ICS);
+}
+
+template <class T> void PDIp_2p<T>::field (double *var) const
+{
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+  var[0] = state[1] / I ;//è corretto così
+  var[1] = 2*this->port[0]->read()/sqrt_P0 + 2*this->port[1]->read()/sqrt_P0 - state[1]*(2*P + P0)/(P*P0*I) - state[0] / D ;
+}
+
+template <class T> void PDIp_2p<T>::calculus ()
+{
+        const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	while (step()) {
+	  this->port[0]->write((state[1] / (sqrt_P0*I) - this->port[0]->read()));
+	  this->port[1]->write((state[1] / (sqrt_P0*I) - this->port[1]->read()));
+	}
+}
+
+
+//   Declaration of the module PDI_series_2_ports with equal norm. resistance:
+
+template <class T1>
+struct PDIs_2s : wave_module <2, T1>, analog_module
+{
+	SC_HAS_PROCESS(PDIs_2s);
+  PDIs_2s (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element); 
+public:
+	void ics(double ICD, double ICS);
+private:
+	void field (double *var) const;
+	void calculus ();
+	double P, D, I;           
+};
+
+//   Implementation of the module PDI_series_2_ports:
+
+template <class T> PDIs_2s<T>::PDIs_2s (sc_core::sc_module_name name,double proportional_element, double derivative_element, double integrative_element): analog_module(2, sqrt(derivative_element*integrative_element)/100, sqrt(derivative_element*integrative_element)/10),P(proportional_element), D(derivative_element), I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void PDIs_2s<T>::ics(double ICD, double ICI)
+{
+	double ICS[2] = {D*ICD, I*ICI};
+	this->ic(ICS);
+}
+
+template <class T> void PDIs_2s<T>::field (double *var) const
+{
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+  var[0] = 2 * (this->port[0]->read() - this->port[1]->read()) * sqrt_P0 - state[0] / D * (2 * P0 + P) - state[1] / I;
+  var[1] = state[0] / D;
+}
+
+template <class T> void PDIs_2s<T>::calculus ()
+{
+	const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+//    const double P0 = this->port[0]->get_normalization();
+	while (step()) {
+	  this->port[0]->write(this->port[0]->read() - sqrt_P0 / D * state[0]);
+	  this->port[1]->write( this->port[1]->read() + sqrt_P0 / D * state[0]);
+	}
+}
+
+
+
+//	Declaration of class PIs_2s
+
+template <class T>
+struct PIs_2s : wave_module<2, T>, analog_module
+{
+  SC_HAS_PROCESS(PIs_2s);
+  PIs_2s (sc_core::sc_module_name name, double proportional_element, double integrative_element
+// double P0 = 1
+);
+
+public:
+	void ics(double IC);
+  private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, I;
+};
+
+
+//	Implementation of class PIs_2s with equal norm. resistance
+
+template <class T> PIs_2s<T>::PIs_2s (sc_core::sc_module_name name, double proportional_element, double integrative_element
+			      // double P0
+) : analog_module(1), P(proportional_element), I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	//	port[0](P0);
+	//	port[1](P0);
+}
+
+template <class T> void PIs_2s<T>::ics(double IC)
+{
+	this->ic(I*IC);
+}
+
+template <class T> void PIs_2s<T>::field (double *var) const
+{
+  typename T::wave_type a1 = this->port[0]->read(), a2 = this->port[1]->read();
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+  var[0] = (2 * sqrt_P0  * (a1-a2) / (2*P0+P) - state[0] / (2*P0+P) / I) ;
+}
+
+
+template <class T> void PIs_2s<T>::calculus ()
+{
+        const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	const double P0 = this->port[0]->get_normalization();
+		if (!set_steplimits_used) {
+		set_steplimits(P0*I/100,P0*I/10);
+	}
+	while (step()) {
+	  typename T::wave_type a1 = this->port[0]->read();
+	  typename T::wave_type a2 = this->port[1]->read();
+	  typename T::wave_type b1 = (P / (2*P0+P) * a1 + 2*P0 / (2*P0+P) * a2 + state[0] * sqrt_P0 / I / (2*P0+P));
+	  typename T::wave_type b2 = (P / (2*P0+P) * a2 + 2*P0 / (2*P0+P) * a1 - state[0] * sqrt_P0 / I / (2*P0+P));
+	  this->port[0]->write(b1);
+	  this->port[1]->write(b2);
+	}
+}
+
+
+//	Declaration of class PDp_2p
+
+template <class T>
+struct PDp_2p : wave_module<2, T>, analog_module
+{
+  SC_HAS_PROCESS(PDp_2p);
+     PDp_2p (sc_core::sc_module_name name, double proportional_element, double derivative_element
+// double P0 = 1
+);
+
+public:
+	void ics(double IC);
+  private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, D;
+};
+
+
+//	Implementation of class PDp_2p with equal norm. resistance
+
+template <class T> PDp_2p<T>::PDp_2p(sc_core::sc_module_name name, double proportional_element, double derivative_element
+// double P0
+) : analog_module(1),P(proportional_element), D(derivative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	//	port[0](P0);
+	//	port[1](P0);
+}
+
+template <class T> void PDp_2p<T>::ics(double IC)
+{
+	this->ic(D*IC);
+}
+
+template <class T> void PDp_2p<T>::field (double *var) const
+{
+  typename T::wave_type a1 = this->port[0]->read(), a2 = this->port[1]->read();
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+  var[0] = (2 * sqrt_P0 * P *(a1+a2) / (2*P+P0) - state[0] * (P*P0) / (2*P+P0) / D ) ;
+}
+
+
+template <class T> void PDp_2p<T>::calculus ()
+{
+	const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	const double P0 = this->port[0]->get_normalization();
+	if (!set_steplimits_used) {
+		const double tau = D/P0;
+		set_steplimits(tau/100,tau/10);
+	}
+	while (step()) {
+	  typename T::wave_type a1 = this->port[0]->read();
+	  typename T::wave_type a2 = this->port[1]->read();
+	  typename T::wave_type b1 = (2*P * a2 / (2*P+P0) - P0 * a1 / (2*P+P0) - state[0] * sqrt_P0 * P / D / (2*P+P0));
+	  typename T::wave_type b2 = (2*P * a1 / (2*P+P0) - P0 * a2 / (2*P+P0) - state[0] * sqrt_P0 * P / D / (2*P+P0));
+	  this->port[0]->write(b1);
+	  this->port[1]->write(b2);
+	}
+}
+
+//	Declaration of class PIp_2p
+
+template <class T>
+struct PIp_2p : wave_module<2, T>, analog_module
+{
+  SC_HAS_PROCESS(PIp_2p);
+     PIp_2p (sc_core::sc_module_name name, double proportional_element, double integrative_element
+// double P0 = 1
+);
+
+public:
+	void ics(double IC);
+  private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, I;
+};
+
+
+//	Implementation of class PIp_2p with equal norm. resistance
+
+template <class T> PIp_2p<T>::PIp_2p(sc_core::sc_module_name name, double proportional_element, double integrative_element
+// double P0
+) : analog_module(1), P(proportional_element),I (integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	//	port[0](P0);
+	//	port[1](P0);
+}
+
+template <class T> void PIp_2p<T>::ics(double IC)
+{
+	this->ic(I*IC);
+}
+
+template <class T> void PIp_2p<T>::field (double *var) const
+{
+  typename T::wave_type a1 = this->port[0]->read(), a2 = this->port[1]->read();
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+  var[0] = (2 / sqrt_P0 * (a1+a2) - state[0] * (2*P+P0) / (I*P*P0) ) ;
+}
+
+
+template <class T> void PIp_2p<T>::calculus ()
+{
+        const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		const double tau = this->port[0]->get_normalization()*I;
+		set_steplimits(tau/100,tau/10);
+	}
+
+	while (step()) {
+	  typename T::wave_type a1 = this->port[0]->read();
+	  typename T::wave_type a2 = this->port[1]->read();
+	  typename T::wave_type b1 = (state[0] / (sqrt_P0 * I)- a1);
+	  typename T::wave_type b2 = (state[0] / (sqrt_P0 * I)- a2);
+	  this->port[0]->write(b1);
+	  this->port[1]->write(b2);
+	}
+}
+
+//	Declaration of class PDs_2p
+
+template <class T>
+struct PDs_2p : wave_module<2, T>, analog_module
+{
+  SC_HAS_PROCESS(PDs_2p);
+     PDs_2p (sc_core::sc_module_name name, double proportional_element, double derivative_element
+// double P0 = 1
+);
+
+public:
+	void ics(double IC);
+  private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, D;
+};
+
+
+//	Implementation of class PDs_2p
+
+template <class T> PDs_2p<T>::PDs_2p(sc_core::sc_module_name name, double proportional_element, double derivative_element
+// double P0
+) : analog_module(1), P(proportional_element), D(derivative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	//	port[0](P0);
+	//	port[1](P0);
+}
+
+template <class T> void PDs_2p<T>::ics(double IC)
+{
+	this->ic(D*IC);
+}
+
+template <class T> void PDs_2p<T>::field (double *var) const
+{
+  typename T::wave_type a1 = this->port[0]->read(), a2 = this->port[1]->read();
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+  var[0] = (sqrt_P0 * (a1+a2) - state[0] * (2*P+P0) / (2*D)) ;
+}
+
+
+template <class T> void PDs_2p<T>::calculus ()
+{
+        const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		const double tau = D/this->port[0]->get_normalization();
+		set_steplimits(tau/100,tau/10);
+	}
+	while (step()) {
+	  typename T::wave_type a1 = this->port[0]->read();
+	  typename T::wave_type a2 = this->port[1]->read();
+	  typename T::wave_type b1 = (a2 - state[0] * sqrt_P0 / (2*D));
+	  typename T::wave_type b2 = (a1 - state[0] * sqrt_P0 / (2*D));
+	  this->port[0]->write(b1);
+	  this->port[1]->write(b2);
+	}
+}
+
+//	Declaration of class PIs_2p
+
+template <class T>
+struct PIs_2p : wave_module<2, T>, analog_module
+{
+  SC_HAS_PROCESS(PIs_2p);
+     PIs_2p (sc_core::sc_module_name name, double proportional_element, double integrative_element
+// double P0 = 1
+);
+
+public:
+	void ics(double IC);
+  private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, I;
+};
+
+
+//	Implementation of class PIs_2p with equal norm. resistance
+
+template <class T> PIs_2p<T>::PIs_2p(sc_core::sc_module_name name, double proportional_element, double integrative_element
+// double P0
+) : analog_module(1), P(proportional_element),I (integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	//	port[0](P0);
+	//	port[1](P0);
+}
+
+template <class T> void PIs_2p<T>::ics(double IC)
+{
+	this->ic(I*IC);
+}
+
+template <class T> void PIs_2p<T>::field (double *var) const
+{
+  typename T::wave_type a1 = this->port[0]->read(), a2 = this->port[1]->read();
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+  var[0] = (2 * sqrt_P0 * (a1+a2) / (2*P+P0) - (2* state[0]) / (2*P+P0) / I ) ;
+}
+
+
+template <class T> void PIs_2p<T>::calculus ()
+{
+        const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	const double P0 = this->port[0]->get_normalization();
+	if (!set_steplimits_used) {
+		const double tau = P0*I;
+		set_steplimits(tau/100,tau/10);
+	}
+	while (step()) {
+	  typename T::wave_type a1 = this->port[0]->read();
+	  typename T::wave_type a2 = this->port[1]->read();
+	  typename T::wave_type b1 = (2*P*a2 / (2*P+P0) - P0*a1 / (2*P+P0) + (sqrt_P0 * state[0]) / (2*P+P0) / I);
+	  typename T::wave_type b2 = (2*P*a1 / (2*P+P0) - P0*a2 / (2*P+P0) + (sqrt_P0 * state[0]) / (2*P+P0) / I);
+	  this->port[0]->write(b1);
+	  this->port[1]->write(b2);
+	}
+}
+//	Declaration of class PDp_2s
+
+template <class T>
+struct PDp_2s : wave_module<2, T>, analog_module
+{
+  SC_HAS_PROCESS(PDp_2s);
+     PDp_2s (sc_core::sc_module_name name, double proportional_element, double derivative_element
+// double P0 = 1
+);
+
+public:
+	void ics(double IC);
+  private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, D;
+};
+
+
+//	Implementation of class PDp_2s with equal norm. resistance
+
+template <class T> PDp_2s<T>::PDp_2s(sc_core::sc_module_name name, double proportional_element, double derivative_element
+// double P0
+) : analog_module(1), P(proportional_element), D(derivative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	//	port[0](P0);
+	//	port[1](P0);
+}
+
+template <class T> void PDp_2s<T>::ics(double IC)
+{
+	this->ic(D*IC);
+}
+
+template <class T> void PDp_2s<T>::field (double *var) const
+{
+  typename T::wave_type a1 = this->port[0]->read(), a2 = this->port[1]->read();
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+  var[0] = (2 * sqrt_P0 * P *(a1-a2) / (2*P0+P) - state[0] * (2*P*P0) / (2*P0+P)) ;
+}
+
+
+template <class T> void PDp_2s<T>::calculus ()
+{
+	const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	const double P0 = this->port[0]->get_normalization();
+	if (!set_steplimits_used) {
+		const double tau = D/P0;
+		set_steplimits(tau/100,tau/10);
+	}
+	while (step()) {
+	  typename T::wave_type a1 = this->port[0]->read();
+	  typename T::wave_type a2 = this->port[1]->read();
+	  typename T::wave_type b1 = (2*P0 * a2 / (2*P0+P) + P * a1 / (2*P0+P) - state[0] * sqrt_P0 * P / (2*P0+P));
+	  typename T::wave_type b2 = (2*P0 * a1 / (2*P0+P) + P * a2 / (2*P0+P) + state[0] * sqrt_P0 * P / (2*P0+P));
+	  this->port[0]->write(b1);
+	  this->port[1]->write(b2);
+	}
+}
+
+
+//	Declaration of class PIp_2s
+
+template <class T>
+struct PIp_2s : wave_module<2, T>, analog_module
+{
+  SC_HAS_PROCESS(PIp_2s);
+     PIp_2s (sc_core::sc_module_name name, double proportional_element, double integrative_element
+// double P0 = 1
+);
+
+public:
+	void ics(double IC);
+  private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, I;
+};
+
+
+//	Implementation of class PIp_2s with equal norm. resistance
+
+template <class T> PIp_2s<T>::PIp_2s(sc_core::sc_module_name name, double proportional_element, double integrative_element
+// double P0
+) : analog_module(1), P(proportional_element),I (integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	//	port[0](P0);
+	//	port[1](P0);
+}
+
+template <class T> void PIp_2s<T>::ics(double IC)
+{
+	this->ic(I*IC);
+}
+
+template <class T> void PIp_2s<T>::field (double *var) const
+{
+  typename T::wave_type a1 = this->port[0]->read(), a2 = this->port[1]->read();
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+  var[0] = ((a1-a2) / sqrt_P0 - state[0] * (1 / (2*P0*I) + 1 / (I*P) )) ;
+}
+
+
+template <class T> void PIp_2s<T>::calculus ()
+{
+        const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		const double tau = this->port[0]->get_normalization()*I;
+		set_steplimits(tau/100,tau/10);
+	}
+	while (step()) {
+	  typename T::wave_type a1 = this->port[0]->read();
+	  typename T::wave_type a2 = this->port[1]->read();
+	  typename T::wave_type b1 = (a2 + state[0] / (2*sqrt_P0 * I));
+	  typename T::wave_type b2 = (a1 - state[0] / (2*sqrt_P0 * I));
+	  this->port[0]->write(b1);
+	  this->port[1]->write(b2);
+	}
+}
+
+
+//   Declaration of the module PDIs_2p with equal norm. resistance:
+
+template <class T1>
+struct PDIs_2p : wave_module <2, T1>, analog_module
+{
+	SC_HAS_PROCESS(PDIs_2p);
+  PDIs_2p (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element); 
+public:
+	void ics(double ICD, double ICI);
+private:
+	void field (double *var) const;
+	void calculus ();
+	double P, D, I;           
+};
+
+//   Implementation of the module PDIs_2p:
+
+template <class T> PDIs_2p<T>::PDIs_2p (sc_core::sc_module_name name,double proportional_element, double derivative_element, double integrative_element): analog_module(2, sqrt(derivative_element*integrative_element)/100, sqrt(derivative_element*integrative_element)/10),P(proportional_element), D(derivative_element), I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void PDIs_2p<T>::ics(double ICD, double ICI)
+{
+	double ICS[2] = {D*ICD, I*ICI};
+	this->ic(ICS);
+}
+template <class T> void PDIs_2p<T>::field (double *var) const
+{
+  typename T::wave_type a1 = this->port[0]->read();
+  typename T::wave_type a2 = this->port[1]->read();
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+  var[0] = (a1 + a2) * sqrt_P0 - state[0] * (2 * P + P0) / (2*D) - state[1] / I;
+  var[1] = state[0] / D;
+}
+
+template <class T> void PDIs_2p<T>::calculus ()
+{
+	const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+//        const double P0 = this->port[0]->get_normalization();
+	while (step()) {
+	  typename T::wave_type a1 = this->port[0]->read();
+      	  typename T::wave_type a2 = this->port[1]->read();
+	  typename T::wave_type b1 = a2 - sqrt_P0 / (2*D) * state[0];
+	  typename T::wave_type b2 = a1 - sqrt_P0 / (2*D) * state[0];
+	  this->port[0]->write(b1);
+	  this->port[1]->write(b2);
+	}
+}
+
+
+//	Declaration of class PDIp_2s
+
+template <class T1>
+struct PDIp_2s : wave_module<2, T1>, analog_module
+{
+  SC_HAS_PROCESS(PDIp_2s);
+  PDIp_2s (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element
+//double P0 = 1
+);
+public:
+	void ics(double ICD, double ICI);
+private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, D, I;
+};
+
+//	Implementation of class PDIp_2s
+
+template <class T> PDIp_2s<T>::PDIp_2s (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element
+//double P0
+) : analog_module(2, sqrt(derivative_element*integrative_element)/100, sqrt(derivative_element*integrative_element)/10),P(proportional_element), D(derivative_element), I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	//	port[0](P0);
+	//	port[1](P0);
+}
+
+template <class T> void PDIp_2s<T>::ics(double ICD, double ICI)
+{
+	double ICS[2] = {D*ICD, I*ICI};
+	this->ic(ICS);
+}
+
+template <class T> void PDIp_2s<T>::field (double *var) const
+{
+  typename T::wave_type a1 = this->port[0]->read(), a2 = this->port[1]->read();
+  const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+  const double P0 = this->port[0]->get_normalization();
+
+ var[0] = (a1-a2) / sqrt_P0 - (2*P0+P) * state[0] / (2*P0*P*I) - state[1] / D ;//è corretto così
+  var[1] = state[0] / I ;
+}
+
+template <class T> void PDIp_2s<T>::calculus ()
+{
+        const double sqrt_P0 = this->port[0]->get_normalization_sqrt();
+	while (step()) {
+	  typename T::wave_type a1 = this->port[0]->read();
+	  typename T::wave_type a2 = this->port[1]->read();
+	  typename T::wave_type b1 = (a2 + state[0] / (2*sqrt_P0*I));
+	  typename T::wave_type b2 = (a1 - state[0] / (2*sqrt_P0*I));
+	  this->port[0]->write(b1);
+	  this->port[1]->write(b2);
+	}
+}
+
+
+#endif // TWOPORT_H

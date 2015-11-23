@@ -1,0 +1,43 @@
+// complex_tracer.h:
+// Copyright (C) 2005 Giorgio Biagetti
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#ifndef COMPLEX_TRACER_H
+#define COMPLEX_TRACER_H
+
+namespace sc_core
+{ // WARNING: It is not clear why this is needed.
+
+inline
+void sc_trace (sc_core::sc_trace_file *tf, std::complex <double> const &datum, std::string const &name)
+{
+	// WARNING!!!: THIS IS NONSTANDARD AND NOT PORTABLE!!!
+	tf->trace(*(0 + (double *) &datum), name + " {real}");
+	tf->trace(*(1 + (double *) &datum), name + " {imag}");
+}
+
+inline
+void sc_trace (sc_core::sc_trace_file *tf, threephase::dump_type const &datum, std::string const &name)
+{
+	tf->trace(datum.phase[0], name + " 1");
+	tf->trace(datum.phase[1], name + " 2");
+	tf->trace(datum.phase[2], name + " 3");
+}
+
+} // namespace sc_core
+
+#endif

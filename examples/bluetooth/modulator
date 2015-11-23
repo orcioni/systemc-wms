@@ -1,0 +1,386 @@
+// modulator:
+// Copyright (C) 2007 Rocco D. d'Aparo
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#include "systemc.h"
+
+//this first device decoder_single_level is connected to demululator output.
+SC_MODULE(decoder_single_level){
+	sc_in<double> bit_in;
+	sc_in<bool> clock_1MHz;
+	sc_out<bool> bit_out; 
+	void conversion(); 
+
+SC_CTOR(decoder_single_level){
+	SC_METHOD(conversion); sensitive_pos << clock_1MHz;
+		}
+};
+
+void decoder_single_level::conversion() {
+if(bit_in==1) bit_out=true; else bit_out=false;
+	}
+//		
+
+
+SC_MODULE(DA_conv){
+	sc_in<double> I_in, Q_in; 
+	sc_in<bool> clock_12MHz;
+	sc_out<double> I_out, Q_out; 
+	void conversion(); 
+	double Gi, Gq,res;
+	
+	
+SC_CTOR(DA_conv){
+	SC_METHOD(conversion); sensitive_pos << clock_12MHz;
+	Gi=sqrt(2.*0.010e-3);Gq=sqrt(2.*0.010e-3);res=32;
+		}
+};
+
+void DA_conv::conversion() {
+	//I_out=I_in*Gi;Q_out=Q_in*Gq;
+	I_out=((double)((long long int)(I_in*pow(2,res-1))))*Gi*1/pow(2, res-1);//std::cout<<I_out<<std::endl;
+	Q_out=((double)((long long int)(Q_in*pow(2,res-1))))*Gq*1/pow(2, res-1);
+	}
+//		
+
+SC_MODULE(AD_conv){
+	sc_in<double> I_in, Q_in; 
+	sc_in<bool> clock_12MHz;
+	sc_out<double> I_out, Q_out; 
+	void conversion(); 
+	double Gi, Gq, res;
+	
+SC_CTOR(AD_conv){
+	SC_METHOD(conversion); sensitive_pos << clock_12MHz;
+	Gi=1./sqrt(2.*0.025e-3);Gq=1./sqrt(2.*0.025e-3);res=32;
+		}
+};
+
+void AD_conv::conversion() {
+	//I_out=I_in*Gi;Q_out=Q_in*Gq;
+	I_out=((double)((long long int)(I_in*pow(2,res-1)/0.001)))*Gi*1/pow(2, res-1)*0.001;
+	Q_out=((double)((long long int)(Q_in*pow(2,res-1)/0.001)))*Gq*1/pow(2, res-1)*0.001;
+	}
+//	
+//	
+
+SC_MODULE(buffer3){
+	sc_in<bool> data_stream; 
+	sc_in<bool> clock_1MHz;
+	sc_out<sc_uint<3> > lock_up_table_address; 
+	void store_and_provide(); 
+	sc_uint<3> address;
+	sc_bv<3> buffer;
+	sc_bv<2> temp;
+	sc_uint<2> index;
+SC_CTOR(buffer3){
+	SC_METHOD(store_and_provide); sensitive_pos << clock_1MHz;
+	address=0;buffer="000";temp="00";
+				}
+};
+//								***********								//
+void buffer3::store_and_provide() {
+	buffer[0]=data_stream;buffer[1]=temp[0];buffer[2]=temp[1];
+	temp[0]=buffer[0];temp[1]=buffer[1];
+	if(buffer[2]==0 &  buffer[1]==0 & buffer[0]==0) lock_up_table_address=0;
+	if(buffer[2]==0 &  buffer[1]==0 & buffer[0]==1) lock_up_table_address=1;
+	if(buffer[2]==0 &  buffer[1]==1 & buffer[0]==0) lock_up_table_address=2;
+	if(buffer[2]==0 &  buffer[1]==1 & buffer[0]==1) lock_up_table_address=3;
+	if(buffer[2]==1 &  buffer[1]==0 & buffer[0]==0) lock_up_table_address=4;
+	if(buffer[2]==1 &  buffer[1]==0 & buffer[0]==1) lock_up_table_address=5;
+	if(buffer[2]==1 &  buffer[1]==1 & buffer[0]==0) lock_up_table_address=6;
+	if(buffer[2]==1 &  buffer[1]==1 & buffer[0]==1) lock_up_table_address=7;
+									}
+//								***********								//
+SC_MODULE(look_up_table){
+	sc_in<sc_uint<3> > address;
+	sc_in<bool> clock_1MHz;
+	sc_out<double> parallel_data_out[12];
+	void provide_to_out();
+	double look_up_tab[8][12];
+	int index;
+	double pi;double h; double osr;
+SC_CTOR(look_up_table){
+	SC_METHOD(provide_to_out); sensitive_pos << clock_1MHz;
+	pi=3.1415926535898;h=0.32;osr=12.0;
+
+	look_up_tab[0][0]=-0.99998*pi*h/osr;
+	look_up_tab[0][1]=-0.99999*pi*h/osr;
+	look_up_tab[0][2]=-1*pi*h/osr;
+	look_up_tab[0][3]=-1*pi*h/osr;
+	look_up_tab[0][4]=-1*pi*h/osr;
+	look_up_tab[0][5]=-1*pi*h/osr;
+	look_up_tab[0][6]=-1*pi*h/osr;
+	look_up_tab[0][7]=-1*pi*h/osr;
+	look_up_tab[0][8]=-1*pi*h/osr;
+	look_up_tab[0][9]=-0.99999*pi*h/osr;
+	look_up_tab[0][10]=-0.99998*pi*h/osr;
+	look_up_tab[0][11]=-0.99992*pi*h/osr;
+	
+	look_up_tab[1][0]=-0.99944*pi*h/osr;
+	look_up_tab[1][1]=-0.99833*pi*h/osr;
+	look_up_tab[1][2]=-0.99535*pi*h/osr;
+	look_up_tab[1][3]=-0.98812*pi*h/osr;
+	look_up_tab[1][4]=-0.97228*pi*h/osr;
+	look_up_tab[1][5]=-0.9408*pi*h/osr;
+	look_up_tab[1][6]=-0.88411*pi*h/osr;
+	look_up_tab[1][7]=-0.79154*pi*h/osr;
+	look_up_tab[1][8]=-0.6545*pi*h/osr;
+	look_up_tab[1][9]=-0.47059*pi*h/osr;
+	look_up_tab[1][10]=-0.24684*pi*h/osr;
+	look_up_tab[1][11]=(-0.000080507)*pi*h/osr;
+
+
+	look_up_tab[2][0]=0.2463*pi*h/osr;
+	look_up_tab[2][1]=0.46893*pi*h/osr;
+	look_up_tab[2][2]=0.64985*pi*h/osr;
+	look_up_tab[2][3]=0.77966*pi*h/osr;
+	look_up_tab[2][4]=0.85639*pi*h/osr;
+	look_up_tab[2][5]=0.8816*pi*h/osr;
+	look_up_tab[2][6]=0.85639*pi*h/osr;
+	look_up_tab[2][7]=0.77966*pi*h/osr;
+	look_up_tab[2][8]=0.64985*pi*h/osr;
+	look_up_tab[2][9]=0.46893*pi*h/osr;
+	look_up_tab[2][10]=0.2463*pi*h/osr;
+	look_up_tab[2][11]=(-0.000080507)*pi*h/osr;
+
+ 
+	look_up_tab[3][0]=0.24684*pi*h/osr;
+	look_up_tab[3][1]=0.47059*pi*h/osr;
+	look_up_tab[3][2]=0.6545*pi*h/osr;
+	look_up_tab[3][3]=0.79154*pi*h/osr;
+	look_up_tab[3][4]=0.88411*pi*h/osr;
+	look_up_tab[3][5]=0.9408*pi*h/osr;
+	look_up_tab[3][6]=0.97228*pi*h/osr;
+	look_up_tab[3][7]=0.98812*pi*h/osr;
+	look_up_tab[3][8]=0.99535*pi*h/osr;
+	look_up_tab[3][9]=0.99833*pi*h/osr;
+	look_up_tab[3][10]=0.99944*pi*h/osr;
+	look_up_tab[3][11]=0.99976*pi*h/osr;
+
+ 
+	look_up_tab[4][0]=-0.24684*pi*h/osr;	
+	look_up_tab[4][1]=-0.47059*pi*h/osr;
+	look_up_tab[4][2]=-0.6545*pi*h/osr;	
+	look_up_tab[4][3]=-0.79154*pi*h/osr;
+	look_up_tab[4][4]=-0.88411*pi*h/osr;	
+	look_up_tab[4][5]=-0.9408*pi*h/osr;
+	look_up_tab[4][6]=-0.97228*pi*h/osr;	
+	look_up_tab[4][7]=-0.98812*pi*h/osr;
+	look_up_tab[4][8]=-0.99535*pi*h/osr;	
+	look_up_tab[4][9]=-0.99833*pi*h/osr;
+	look_up_tab[4][10]=-0.99944*pi*h/osr;	
+	look_up_tab[4][11]=-0.99976*pi*h/osr;
+
+
+	look_up_tab[5][0]=-0.2463*pi*h/osr;	
+	look_up_tab[5][1]=-0.46893*pi*h/osr;
+	look_up_tab[5][2]=-0.64985*pi*h/osr;	
+	look_up_tab[5][3]=-0.77966*pi*h/osr;
+	look_up_tab[5][4]=-0.85639*pi*h/osr;	
+	look_up_tab[5][5]=-0.8816*pi*h/osr;
+	look_up_tab[5][6]=-0.85639*pi*h/osr;	
+	look_up_tab[5][7]=-0.77966*pi*h/osr;
+	look_up_tab[5][8]=-0.64985*pi*h/osr;	
+	look_up_tab[5][9]=-0.46893*pi*h/osr;
+	look_up_tab[5][10]=-0.2463*pi*h/osr;	
+	look_up_tab[5][11]=(0.000080507)*pi*h/osr;
+
+
+	look_up_tab[6][0]=0.99944*pi*h/osr;	
+	look_up_tab[6][1]=0.99833*pi*h/osr;
+	look_up_tab[6][2]=0.99535*pi*h/osr;	
+	look_up_tab[6][3]=0.98812*pi*h/osr;
+	look_up_tab[6][4]=0.97228*pi*h/osr;	
+	look_up_tab[6][5]=0.9408*pi*h/osr;
+	look_up_tab[6][6]=0.88411*pi*h/osr;	
+	look_up_tab[6][7]=0.79154*pi*h/osr;
+	look_up_tab[6][8]=0.6545*pi*h/osr;	
+	look_up_tab[6][9]=0.47059*pi*h/osr;
+	look_up_tab[6][10]=0.24684*pi*h/osr;	
+	look_up_tab[6][11]=(0.000080507)*pi*h/osr;
+
+
+	look_up_tab[7][0]=0.99998*pi*h/osr;	
+	look_up_tab[7][1]=0.99999*pi*h/osr;
+	look_up_tab[7][2]=1*pi*h/osr;		
+	look_up_tab[7][3]=1*pi*h/osr;
+	look_up_tab[7][4]=1*pi*h/osr;		
+	look_up_tab[7][5]=1*pi*h/osr;
+	look_up_tab[7][6]=1*pi*h/osr;		
+	look_up_tab[7][7]=1*pi*h/osr;
+	look_up_tab[7][8]=1*pi*h/osr;		
+	look_up_tab[7][9]=0.99999*pi*h/osr;
+	look_up_tab[7][10]=0.99998*pi*h/osr;	
+	look_up_tab[7][11]=0.99992*pi*h/osr;
+	}
+};
+
+//			***********			//
+
+void look_up_table::provide_to_out(){
+	if(address == (sc_uint<3>) 0) 
+		for (index= 0; index < 12; index++){
+			parallel_data_out[index]=look_up_tab[0][index];}
+	if(address == (sc_uint<3>) 1)
+		for (index= 0; index < 12; index++){
+			parallel_data_out[index]=look_up_tab[1][index];}
+	if(address == (sc_uint<3>) 2)
+		for (index=  0; index <  12; index++){
+			parallel_data_out[index]=look_up_tab[2][index];}
+	if(address == (sc_uint<3>) 3)
+		for (index=  0; index <  12; index++){
+			parallel_data_out[index]=look_up_tab[3][index];}
+	if(address == (sc_uint<3>) 4)
+		for (index=0; index <  12; index++){
+			parallel_data_out[index]=look_up_tab[4][index];}
+	if(address == (sc_uint<3>) 5)
+		for (index=  0; index < 12; index++){
+			parallel_data_out[index]=look_up_tab[5][index];}
+	if(address == (sc_uint<3>) 6)
+		for (index= 0; index < 12; index++){
+			parallel_data_out[index]=look_up_tab[6][index];}
+	if(address == (sc_uint<3>) 7)
+		for (index=  0; index< 12; index++){
+			parallel_data_out[index]=look_up_tab[7][index];}
+}
+
+//			***********			//
+
+SC_MODULE(parallel_to_serial){
+	sc_in<double> impluse_response[12];
+	sc_in<bool> clock_12MHz;
+	sc_in<bool> clock_1MHz;
+	sc_out<double> osr_data_stream;
+	void oversample();
+	void reset();
+	int index;
+SC_CTOR(parallel_to_serial){
+	SC_METHOD(oversample);
+	sensitive_pos << clock_12MHz;
+	SC_METHOD(reset);
+	sensitive_pos << clock_1MHz;
+	index=0;
+}
+};
+
+//			***********			//
+
+void parallel_to_serial::oversample(){
+	if(index>11) index=0;osr_data_stream=impluse_response[index];index++;}
+void parallel_to_serial::reset(){index=0;}
+
+//			***********			//
+
+struct modulator : sc_module{
+	sc_in<bool> clk1;
+	sc_in<bool> clk12;
+	sc_in<bool> data_in;
+	sc_out<double> coos;
+	sc_out<double> siin;
+	sc_out<double> gaussian_out;
+	sc_signal<sc_uint<3> > address_out_buffer;
+	sc_signal<double> out_lut[12];
+	sc_signal<double> osr_data;
+
+	buffer3 *buff;
+	look_up_table *lut;
+	parallel_to_serial *p2s;
+	NCO<double> nco;
+
+modulator(sc_module_name name):nco("NCO"){
+
+buff= new buffer3("buff");
+	buff->clock_1MHz(clk1);
+	buff->data_stream(data_in);
+	buff->lock_up_table_address(address_out_buffer);
+
+lut= new look_up_table("lut");
+	lut->clock_1MHz(clk1);
+	lut->address(address_out_buffer);
+	lut->parallel_data_out[0](out_lut[0]);
+	lut->parallel_data_out[1](out_lut[1]);
+	lut->parallel_data_out[2](out_lut[2]);
+	lut->parallel_data_out[3](out_lut[3]);
+	lut->parallel_data_out[4](out_lut[4]);
+	lut->parallel_data_out[5](out_lut[5]);
+	lut->parallel_data_out[6](out_lut[6]);
+	lut->parallel_data_out[7](out_lut[7]);
+	lut->parallel_data_out[8](out_lut[8]);
+	lut->parallel_data_out[9](out_lut[9]);
+	lut->parallel_data_out[10](out_lut[10]);
+	lut->parallel_data_out[11](out_lut[11]);
+
+p2s= new parallel_to_serial("p2s");
+	p2s->clock_12MHz(clk12);
+	p2s->clock_1MHz(clk1);
+	p2s->impluse_response[0](out_lut[0]);
+	p2s->impluse_response[1](out_lut[1]);
+	p2s->impluse_response[2](out_lut[2]);
+	p2s->impluse_response[3](out_lut[3]);
+	p2s->impluse_response[4](out_lut[4]);
+	p2s->impluse_response[5](out_lut[5]);
+	p2s->impluse_response[6](out_lut[6]);
+	p2s->impluse_response[7](out_lut[7]);
+	p2s->impluse_response[8](out_lut[8]);
+	p2s->impluse_response[9](out_lut[9]);
+	p2s->impluse_response[10](out_lut[10]);
+	p2s->impluse_response[11](out_lut[11]);
+	//p2s->osr_data_stream(osr_data);
+	p2s->osr_data_stream(gaussian_out);
+
+	nco.osr_data_stream(gaussian_out);
+	nco.clock_12MHz(clk12);
+	nco.siin(siin);
+	nco.coos(coos);
+					}
+};
+
+SC_MODULE(stampx){
+	sc_in<sc_bit> inputx;
+	sc_in<bool> clk;
+	sc_out<double> outputx;
+	void doit();
+	bool tmp;
+SC_CTOR(stampx){ SC_METHOD(doit); sensitive_pos << clk;
+
+}
+};
+
+void stampx::doit(){
+tmp=inputx.read();
+(tmp ? outputx=1.0 : outputx=-1.0);
+}
+
+SC_MODULE(stampxx){
+	sc_in<bool> inputx;
+	sc_in<bool> clk;
+	sc_out<double> outputx;
+	void doit();
+	bool tmp;
+SC_CTOR(stampxx){ SC_METHOD(doit); sensitive_pos << clk;
+
+}
+};
+
+void stampxx::doit(){
+tmp=inputx.read();
+(tmp ? outputx=1.0 : outputx=-1.0);
+}
+
+
+//**************************************************************************//

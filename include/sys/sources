@@ -1,0 +1,245 @@
+// sources.h:
+// Copyright (C) 2004-2006 Giorgio Biagetti and Simone Orcioni
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#ifndef SOURCES_H
+#define SOURCES_H
+
+#include "../wave_system"
+#include "../sys/wave_basics"
+
+// Definition of class source:
+
+template <class T = nature <double> >
+struct source : wave_module <1, T>
+{
+	SC_HAS_PROCESS(source);
+	source (sc_core::sc_module_name name, cfg::source_type t);
+	sc_core::sc_in <typename T::wave_type> input;
+private:
+	void w_calculus ();
+	void v_calculus ();
+	void i_calculus ();
+};
+
+// Implemetation of class source:
+
+template <class T>
+source<T>::source (sc_core::sc_module_name name, cfg::source_type t)
+{
+	switch (t) {
+	case cfg::wave    : SC_METHOD(w_calculus); break;
+	case cfg::across  : SC_METHOD(v_calculus); break;
+	case cfg::through : SC_METHOD(i_calculus); break;
+	}
+	this->sensitive << input;
+	if (t) this->sensitive << this->activation;
+}
+
+template <class T>
+void source<T>::w_calculus ()
+{
+	this->port->write(input->read());
+}
+
+template <class T>
+void source<T>::v_calculus ()
+{
+	this->port->write(input->read() / sqrt(this->port->get_normalization()) - this->port->read());
+}
+
+template <class T>
+void source<T>::i_calculus ()
+{
+	this->port->write(this->port->read() - input->read() * sqrt(this->port->get_normalization()));
+}
+
+
+// Definition of class generator:
+
+template <class T>
+struct function_base
+{
+	typedef T value_type;
+	virtual T operator () (double &t) const = 0;
+	virtual function_base <T> *clone () const = 0;
+protected:
+#define CLONABLE function_base <value_type> *clone () const {return function_base<value_type>::cloner(this);}
+	template <class X> static X *cloner (X const *p) {return new X(*p);}
+};
+
+template <class T = double>
+struct generator : sc_core::sc_module
+{
+	SC_HAS_PROCESS(generator);
+	template <class X> generator (sc_core::sc_module_name name, X const &params)
+	{
+		SC_THREAD(calculus);
+		function = new X(params);
+	}
+	~generator ()
+	{
+		delete function;
+	}
+	sc_core::sc_out <T> output;
+private:
+	void calculus ()
+	{
+		while (true) {
+			double t0 = sc_core::sc_time_stamp().to_seconds(), t = t0;
+			T out = (*function)(t);
+			output->write(out);
+			wait(t - t0, sc_core::SC_SEC);
+		}
+	}
+	function_base <T> const * function;
+};
+
+
+// Definition of utility classes for the specification of generator types:
+
+template <class T>
+class composite_source : public function_base <T>
+{
+	typedef typename function_base<T>::value_type value_type;
+	CLONABLE
+public:
+	composite_source (function_base <T> const &p1, function_base <T> const &p2) : f1(p1.clone()), f2(p2.clone()) {}
+	composite_source (composite_source const &src) : f1(src.f1->clone()), f2(src.f2->clone()) {}
+	~composite_source () {delete f1; delete f2;}
+	virtual T operator () (double &t) const
+	{
+		double t1 = t, t2 = t;
+		T result = (*f1)(t1) + (*f2)(t2);
+		t = t1 < t2 ? t1 : t2;
+		return result;
+	}
+private:
+	composite_source &operator = (composite_source const &rhs);
+	function_base <T> const *f1;
+	function_base <T> const *f2;
+};
+
+template <class T>
+composite_source <T> operator + (function_base <T> const &p1, function_base <T> const &p2)
+{
+	return composite_source<T>(p1, p2);
+}
+
+struct file : function_base <double>
+{	CLONABLE
+	file (const char *filename, int column = 1);
+	file (file const &source);
+	~file ();
+	double operator () (double &t) const;
+private:
+	file &operator = (file const &source);
+	void *datasource;
+	const int column;
+	mutable double next_time, next_value, curr_time, curr_value;
+};
+
+#include <complex>
+
+
+//// Declarations of source functions
+
+struct dc : function_base <double>
+{	CLONABLE
+	dc (double amplitude);
+	double operator () (double &t) const;
+private:
+	double amplitude;
+};
+
+struct sine : function_base <double>
+{	CLONABLE
+	sine (double amplitude, double frequency, double phase = 0, int oversample = 256);
+	double operator () (double &t) const;
+private:
+	double amplitude, omega, phase, tstep;
+};
+
+struct sine_threephase : function_base <std::complex <double> >
+{	CLONABLE
+	sine_threephase (double amplitude, double frequency, double phase = 0);
+	std::complex <double> operator () (double &t) const;
+private:
+	double amplitude, omega, phase;
+};
+
+struct bool_step : function_base <bool>
+{	CLONABLE
+	bool_step (double delay);
+	bool operator () (double &t) const;
+private:
+	double delay;
+};
+
+struct step : function_base <double>
+{	CLONABLE
+	step (double amplitude, double delay);
+	double operator () (double &t) const;
+private:
+	double amplitude, delay;
+};
+
+struct ramp : function_base <double>
+{	CLONABLE
+	ramp (double rate, double init, double delay, double tstep);
+	double operator () (double &t) const;
+private:
+	double rate, init, delay, tstep;
+};
+
+struct sine_threephase_d : function_base <std::complex <double> >
+{	CLONABLE
+	sine_threephase_d (double amplitude, double frequency, double phase = 0);
+	std::complex <double> operator () (double &t) const;
+private:
+	double amplitude, omega, phase;
+};
+
+struct sawtooth : function_base <double>
+{	CLONABLE
+	sawtooth (double amplitude, double frequency, double phase = 0, double bias = 0 ,int oversample = 256);
+	double operator () (double &t) const;
+private:
+	double amplitude, phase, tstep,_freq,_bias;
+};
+
+struct triangular : function_base <double>
+{	CLONABLE
+	triangular (double amplitude, double frequency, double phase = 0, double bias = 0 ,int oversample = 256);
+	double operator () (double &t) const;
+private:
+	double amplitude, phase, tstep,_freq,_bias;
+};
+
+
+//// Declaration of class rectangular (not tested)
+
+struct rectangular : function_base <double>
+{	CLONABLE
+	rectangular (double amplitude, double frequency, double duty=0.5, double phase = 0, double bias = 0 ,int oversample = 256);
+	double operator () (double &t) const;
+private:
+	double amplitude, phase, tstep,_freq,_bias,_duty;
+};
+
+
+#endif // SOURCES_H

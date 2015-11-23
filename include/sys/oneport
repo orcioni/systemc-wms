@@ -1,0 +1,456 @@
+// oneport:
+// Copyright (C) 2004-2006 Giorgio Biagetti and Simone Orcioni
+/*
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#ifndef ONEPORT_H
+#define ONEPORT_H
+
+// The names are referred to the through quantity
+
+// The state variables in electrical domain will correspond to charges and fluxes
+// instead of voltage and current
+
+
+//	Declaration of class P_load
+template <class T1>
+struct P_load : wave_module<1, T1>
+{
+    SC_HAS_PROCESS(P_load);
+    P_load (sc_core::sc_module_name name, double proportional_element);
+private:
+	void calculus ();
+	const double P;
+};
+ 
+//	Implementation of class P_load:
+
+template <class T> P_load<T>::P_load (sc_core::sc_module_name name, double proportional_element) : P(proportional_element)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;	
+}
+
+template <class T> void P_load<T>::calculus ()
+{
+  const double reflection = (P - this->port->get_normalization()) / (P + this->port->get_normalization());
+  this->port->write(this->port->read() * reflection);
+}
+
+
+//	Declaration of class I_load
+
+template <class T1>
+struct I_load : wave_module<1, T1>, analog_module
+{
+  SC_HAS_PROCESS(I_load);
+  I_load(sc_core::sc_module_name name,double integrative_element);
+  
+public:
+	void ics(double IC);
+private:
+  void calculus ();
+  void field (double *var) const;
+  const double I;
+};
+
+
+//	Implementation of class I_load:
+
+template <class T> I_load<T>::I_load (sc_core::sc_module_name name, double integrative_element) : analog_module(1),I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void I_load<T>::ics(double IC)
+{
+	this->ic(I*IC);
+}
+
+template <class T> void I_load<T>::field (double *var) const
+{
+  const double P0 = this->port->get_normalization();
+  const double sqrt_P0 = this->port->get_normalization_sqrt();
+
+   var[0] = 2 * this->port->read() / sqrt_P0 -  state[0]/(P0*I);
+}
+
+template <class T> void I_load<T>::calculus ()
+{
+	const double sqrt_P0 = this->port->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		const double tau = this->port->get_normalization()*I;
+		set_steplimits(tau/100,tau/10);
+	}
+	while (step()) {
+	  this->port->write(state[0]/(sqrt_P0*I) - this->port->read());
+	}
+}
+//	Declaration of class D_load
+
+template <class T1>
+struct D_load : wave_module<1, T1>, analog_module
+{
+  SC_HAS_PROCESS(D_load);
+  D_load(sc_core::sc_module_name name,double derivative_element);
+  
+public:
+	void ics(double IC);
+private:
+  void calculus ();
+  void field (double *var) const;
+  const double D;
+};
+
+
+//	Implementation of class D_load:
+
+template <class T> D_load<T>::D_load (sc_core::sc_module_name name, double derivative_element) : analog_module(1),D(derivative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void D_load<T>::ics(double IC)
+{
+	this->ic(D*IC);
+}
+
+template <class T> void D_load<T>::field (double *var) const
+{
+  const double P0 = this->port->get_normalization();
+  const double sqrt_P0 = this->port->get_normalization_sqrt();
+
+   var[0] = 2 * this->port->read() * sqrt_P0 -  (state[0]*P0)/D;
+}
+
+template <class T> void D_load<T>::calculus ()
+{
+	const double sqrt_P0 = this->port->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		const double tau = D/this->port->get_normalization();
+		set_steplimits(tau/100,tau/10);
+	}
+	while (step()) {
+	  this->port->write(this->port->read() - (state[0]*sqrt_P0)/D);
+	}
+}
+
+//   Declaration of class PIseries_load:
+
+template <class T1>
+struct PIs_load : wave_module<1, T1>, analog_module
+{
+    SC_HAS_PROCESS(PIs_load);
+    PIs_load (sc_core::sc_module_name name, double proportional_element, double integrative_element);
+public:
+	void ics(double IC);
+private:
+    void calculus ();
+    void field (double *var) const;
+    const double P, I;
+};
+
+//	Implementation of class PIseries_load:
+
+
+template <class T> PIs_load<T>::PIs_load (sc_core::sc_module_name name,  double proportional_element, double integrative_element) : analog_module(1), P(proportional_element), I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void PIs_load<T>::ics(double IC)
+{
+	this->ic(I*IC);
+}
+
+template <class T> void PIs_load<T>::field (double *var) const
+{
+  const double P0 = this->port->get_normalization();
+  const double sqrt_P0 = this->port->get_normalization_sqrt();
+
+  var[0] = (2*this->port->read()*sqrt_P0 - state[0]/I) / (P + P0);
+}
+
+template <class T> void PIs_load<T>::calculus ()
+{
+	const double P0 = this->port->get_normalization();
+	const double sqrt_P0 = this->port->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		set_steplimits(P0*I/100,P0/10);
+	}
+	while (step()) {
+	  this->port->write((this->port->read()*(P - P0) + state[0] * sqrt_P0 / I) / (P + P0));
+	}
+}
+
+//	Declaration of class PDseries_load:
+
+template <class T1>
+struct PDs_load : wave_module<1, T1>, analog_module
+{
+  SC_HAS_PROCESS(PDs_load);
+  PDs_load (sc_core::sc_module_name name, double proportional_element, double derivative_element);
+
+public:
+	void ics(double IC);
+private:
+    void calculus ();
+    void field (double *var) const;
+    const double P, D;
+};
+
+//	Implementation of class PDseries_load:
+
+template <class T> PDs_load<T>::PDs_load (sc_core::sc_module_name name, double proportional_element, double derivative_element) : analog_module(1), P(proportional_element), D(derivative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void PDs_load<T>::ics(double IC)
+{
+	this->ic(D*IC);
+}
+
+template <class T> void PDs_load<T>::field (double *var) const
+{
+  const double P0 = this->port->get_normalization();
+  const double sqrt_P0 = this->port->get_normalization_sqrt();
+
+  var[0] = 2*this->port->read()*sqrt_P0 - state[0]*(P + P0) / D ;
+}
+
+template <class T> void PDs_load<T>::calculus ()
+{
+	const double sqrt_P0 = this->port->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		const double tau = D/this->port->get_normalization();
+		set_steplimits(tau/100,tau/10);
+	}
+	while (step()) {
+	  this->port->write(this->port->read() - state[0]*sqrt_P0/D);
+	}
+}
+
+
+
+//	Declaration of class PDIseries_load:
+
+template <class T1>
+struct PDIs_load : wave_module<1, T1>, analog_module
+{
+  SC_HAS_PROCESS(PDIs_load);
+  PDIs_load (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element);
+
+public:
+	void ics(double ICD, double ICI);
+private:
+    void calculus ();
+    void field (double *var) const;
+    const double P, D, I;
+};
+
+
+//	Implementation of class PDIseries_load:
+
+template <class T> PDIs_load<T>::PDIs_load (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element) : analog_module(2, sqrt(derivative_element*integrative_element)/100, sqrt(derivative_element*integrative_element)/10), P(proportional_element), D(derivative_element), I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void PDIs_load<T>::ics(double ICD, double ICI)
+{
+	double ICS[2] = {D*ICD, I*ICI};
+	this->ic(ICS);
+}
+
+template <class T> void PDIs_load<T>::field (double *var) const
+{
+  const double P0 = this->port->get_normalization();
+  const double sqrt_P0 = this->port->get_normalization_sqrt();
+
+  var[0] = 2 * this->port->read() * sqrt_P0 - state[0]*(P + P0) / D - state[1] / I ;
+  var[1] = state[0] / D ;
+
+}
+
+template <class T> void PDIs_load<T>::calculus ()
+{
+  const double sqrt_P0 = this->port->get_normalization_sqrt();
+	while (step()) {
+	  this->port->write(this->port->read() - state[0]*sqrt_P0/D);
+	}
+}
+
+
+
+//	Declaration of class PIparallel_load:
+
+template <class T1>
+struct PIp_load : wave_module<1, T1>, analog_module
+{
+  SC_HAS_PROCESS(PIp_load);
+  PIp_load (sc_core::sc_module_name name, double proportional_element, double integrative_element);
+  
+public:
+	void ics(double IC);
+private:
+  void calculus ();
+  void field (double *var) const;
+  const double P, I;
+};
+
+
+//	Implementation of class PIparallel_load:
+
+template <class T> PIp_load<T>::PIp_load (sc_core::sc_module_name name, double proportional_element, double integrative_element) : analog_module(1), P(proportional_element), I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void PIp_load<T>::ics(double IC)
+{
+	this->ic(I*IC);
+}
+
+template <class T> void PIp_load<T>::field (double *var) const
+{
+  const double P0 = this->port->get_normalization();
+  const double sqrt_P0 = this->port->get_normalization_sqrt();
+
+   var[0] = 2 * this->port->read() / sqrt_P0 -  state[0]*(P+P0)/(P*P0*I);
+}
+
+template <class T> void PIp_load<T>::calculus ()
+{
+	const double sqrt_P0 = this->port->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		const double P0 = this->port->get_normalization();
+		set_steplimits(P0*I/100,P0/10);
+	}
+	while (step()) {
+	  this->port->write(- (this->port->read() - state[0]/(sqrt_P0*I)));
+	}
+}
+
+
+
+//	Declaration of class PDparallel_load:
+
+template <class T1>
+struct PDp_load : wave_module<1, T1>, analog_module
+{
+  SC_HAS_PROCESS(PDp_load);
+  PDp_load (sc_core::sc_module_name name, double proportional_element, double derivative_element);
+
+public:
+	void ics(double IC);
+private:
+  void calculus ();
+  void field (double *var) const;
+    const double P, D;
+};
+
+//	Implementation of class PDparallel_load:
+
+template <class T> PDp_load<T>::PDp_load (sc_core::sc_module_name name, double proportional_element, double derivative_element) : analog_module(1), P(proportional_element), D(derivative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void PDp_load<T>::ics(double IC)
+{
+	this->ic(D*IC);
+}
+
+template <class T> void PDp_load<T>::field (double *var) const
+{
+  const double sqrt_P0 = this->port->get_normalization_sqrt();
+  const double P0 = this->port->get_normalization();
+
+  var[0] = P0*P*(2*this->port->read()*D/sqrt_P0 - state[0]) / (D*(P + P0)) ;
+}
+
+template <class T> void PDp_load<T>::calculus ()
+{
+        const double sqrt_P0 = this->port->get_normalization_sqrt();
+        const double P0 = this->port->get_normalization();
+		if (!set_steplimits_used) {
+			const double tau = D/P0;
+			set_steplimits(tau/100,tau/10);
+		}
+	while (step()) {
+	  this->port->write(( (P - P0)*this->port->read() - state[0]*P*sqrt_P0/D)/(P + P0));
+	}
+}
+
+
+
+//	Declaration of class PDIparallel_load:
+
+template <class T1>
+struct PDIp_load : wave_module<1, T1>, analog_module
+{
+  SC_HAS_PROCESS(PDIp_load);
+  PDIp_load (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element);
+
+public:
+	void ics(double ICD, double ICI);
+private:
+  void calculus ();
+  void field (double *var) const;
+    const double P, D, I;
+};
+
+//	Implementation of class PDIparallel_load:
+
+template <class T> PDIp_load<T>::PDIp_load (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element) : analog_module(2, sqrt(derivative_element*integrative_element)/100, sqrt(derivative_element*integrative_element)/10), P(proportional_element), D(derivative_element), I(integrative_element)
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+}
+
+template <class T> void PDIp_load<T>::ics(double ICD, double ICI)
+{
+	double ICS[2] = {D*ICD, I*ICI};
+	this->ic(ICS);
+}
+
+template <class T> void PDIp_load<T>::field (double *var) const
+{
+  const double sqrt_P0 = this->port->get_normalization_sqrt();
+  const double P0 = this->port->get_normalization();
+
+  var[0] = (2*this->port->read()/sqrt_P0 - state[0]*(P + P0)/(P*P0*I) - state[1]/D);
+  var[1] = state[0] / I ;
+}
+
+template <class T> void PDIp_load<T>::calculus ()
+{
+        const double sqrt_P0 = this->port->get_normalization_sqrt();
+	while (step()) {
+	  this->port->write((state[0]/(I*sqrt_P0) - this->port->read()));
+	}
+}
+
+
+#endif // ONEPORT_H
