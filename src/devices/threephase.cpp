@@ -27,7 +27,6 @@
 const double  ic_clk1 = 6.12372435695795e-01;
 const double  ic_clk2 = 3.53553390593274e-01;
 
-
 RCs_load_tph::RCs_load_tph (sc_core::sc_module_name name, double proportional_element, double derivative_element) : analog_module(2, derivative_element / proportional_element /100, derivative_element / proportional_element/10), R(proportional_element), C(derivative_element)
 {
 	SC_THREAD(calculus);
@@ -59,10 +58,42 @@ void RCs_load_tph::calculus ()
 	}
 }
 
+//   Implementation of class RLCs_2s_tph:
+
+RLCs_2s_tph::RLCs_2s_tph (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element): analog_module(4, sqrt(derivative_element*integrative_element)/1000, sqrt(derivative_element*integrative_element)/10), P(proportional_element), D(derivative_element), I(integrative_element), p1(port(1)), p2(port(2))
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	p1 <<= 5.0;
+	p2 <<= 5.0;
+}
+
+void RLCs_2s_tph::field (double *var) const
+{
+	const double sqrt_P0 = p1->get_normalization_sqrt();
+	const double P0 = p1->get_normalization();
+	std::complex <double> cvar1 = 2.0 * (p1->read() - p2->read()) * sqrt_P0 - std::complex <double>(state[0],state[1]) / D * (2.0 * P0 + P) - std::complex <double>(state[2],state[3]) / I;
+	var[0] = cvar1.real();
+	var[1] = cvar1.imag();
+	var[2] = state[0] / D;
+	var[3] = state[1] / D;
+//	var[0] = 2 * (this->port[0]->read() - this->port[1]->read()) * sqrt_P0 - state[0] / D * (2 * P0 + P) - state[1] / I;
+//	var[1] = state[0] / D;
+}
+
+void RLCs_2s_tph::calculus ()
+{
+	const double sqrt_P0 = p1->get_normalization_sqrt();
+	while (step()) {
+		p1->write(this->port[0]->read() - sqrt_P0 / D * std::complex <double>(state[0],state[1]));
+		p2->write(this->port[1]->read() + sqrt_P0 / D * std::complex <double>(state[0],state[1]));
+	}
+}
+
 
 //	Implementation of class RCs_2p with equal norm. resistance
 
-RCs_2p_tph::RCs_2p_tph(sc_core::sc_module_name name, double proportional_element, double integrative_element) : analog_module(2, proportional_element * integrative_element /100, proportional_element * integrative_element/10),R(proportional_element), C(integrative_element)
+RCs_2p_tph::RCs_2p_tph(sc_core::sc_module_name name, double proportional_element, double integrative_element) : analog_module(2, proportional_element * integrative_element /100, proportional_element * integrative_element/10), R(proportional_element), C(integrative_element)
 {
 	SC_THREAD(calculus);
 	this->sensitive << this->activation;

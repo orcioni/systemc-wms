@@ -35,6 +35,10 @@
 // R - one port
 
 // RCs_load_tph
+// RC series - one port
+
+// RLCs_2s_tph(sc_core::sc_module_name name, double R, double L, double C)
+// RLS series - two port in series between port1 and port2
 
 // Rs_2s_tph(sc_core::sc_module_name name, double R)
 // R - two port in series between port1 and port2
@@ -86,6 +90,20 @@ private:
     void calculus ();
     void field (double *var) const;
     const double R, C;
+};
+
+// Class RLCs_2s_tph
+//   Declaration of class RLC_series_2_ports_series with equal norm. resistance:
+
+struct RLCs_2s_tph : wave_module <2, threephase>, analog_module
+{
+	SC_HAS_PROCESS(RLCs_2s_tph);
+	RLCs_2s_tph (sc_core::sc_module_name name, double proportional_element, double derivative_element, double integrative_element);
+	ab_port <threephase>  &p1, &p2;
+private:
+	void field (double *var) const;
+	void calculus ();
+	double P, D, I;
 };
 
 //	Declaration of class RCs_2p
