@@ -138,8 +138,8 @@ P(proportional_element), D(derivative_element)
 {
 	SC_THREAD(calculus);
 	this->sensitive << this->activation;
-	this->port[0]<<=50;
-	this->port[1]<<=50;
+	this->port[0]<<=5;
+	this->port[1]<<=5;
 }
 
 

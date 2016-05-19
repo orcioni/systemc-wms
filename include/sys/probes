@@ -205,7 +205,6 @@ struct iprobe : wave_module<1, T1>
 	SC_HAS_PROCESS(iprobe);
 	iprobe (sc_core::sc_module_name name, cfg::source_type type);
 	sc_core::sc_out <typename T1::wave_type> output;
-//	sc_core::sc_out <double> output;
 private:
 	void calculus ();
 	double reflection;
@@ -234,6 +233,5 @@ template <class T> void iprobe<T>::calculus ()
      this->port->write(this->reflection * a);
      this->output->write(2.0*a/sqrt_R0);
    }
-
 
 #endif // PROBES_H

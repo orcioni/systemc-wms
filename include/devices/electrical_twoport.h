@@ -82,5 +82,8 @@ typedef rectifier_2s<electrical> diode_2s;
 typedef ideal_rectifier<electrical> diode_bridge;
 typedef controlled_switch_2s<electrical> onoff_switch_2s;
 typedef controlled_switch_rect_2s<electrical> onoff_switchd_2s;
+typedef controlled_switch_loss_rect_2s<electrical> Ron_switchd_2s;
+typedef controlled_switch_loss_2s<electrical> Ron_switch_2s;
+
 
 #endif //ELECTRICAL_TWOPORT_H

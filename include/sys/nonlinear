@@ -274,7 +274,7 @@ private:
 	void calculus ();
 };
 
-// Implementation of class controlled_switch_2s:
+// Implementation of class controlled_switch_rect_2s:
 
 template <class T> controlled_switch_rect_2s<T>::controlled_switch_rect_2s (sc_core::sc_module_name name)
 {
@@ -291,6 +291,77 @@ template <class T> void controlled_switch_rect_2s<T>::calculus ()
 	bool on = rectifier_on || switch_on;
 	this->port[0]->write(on ? a1 : a0);
 	this->port[1]->write(on ? a0 : a1);
+}
+
+// Declaration of class controlled_switch_loss_rect_2s:
+
+template <class T> 
+struct controlled_switch_loss_rect_2s : wave_module<2, T>
+{	// Ideal switch with integrated ideal diode
+	SC_HAS_PROCESS(controlled_switch_loss_rect_2s);
+	controlled_switch_loss_rect_2s (sc_core::sc_module_name name, double proportional_element);
+	sc_core::sc_in <bool> control;
+private:
+	void calculus ();
+        const double P;
+
+};
+
+// Implementation of class controlled_switch_loss_rect_2s:
+
+template <class T> controlled_switch_loss_rect_2s <T>:: controlled_switch_loss_rect_2s (sc_core::sc_module_name name, double proportional_element) :P(proportional_element)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation << control;
+	this->port[0] <<= this->port[1] <<= 1;
+}
+
+template <class T> void controlled_switch_loss_rect_2s <T>::calculus ()
+{
+	// only works if normalization resistances are the same for both ports...
+        const double Pn = P / this->port[0]->get_normalization();
+
+	typename T::wave_type a0 = this->port[0]->read(), a1 = this->port[1]->read();
+	bool rectifier_on = a0 > a1, switch_on = control->read();
+	bool on = rectifier_on || switch_on;
+
+	this->port[0]->write(on ? Pn*a0/(2+Pn) + 2.0*a1/(2+Pn) : a0);
+	this->port[1]->write(on ? 2.0*a0/(2+Pn) + Pn*a1/(2+Pn) : a1);
+}
+
+// Declaration of class controlled_switch_loss_2s:
+
+template <class T> 
+struct controlled_switch_loss_2s : wave_module<2, T>
+{	// Ideal switch with integrated ideal diode
+	SC_HAS_PROCESS(controlled_switch_loss_2s);
+	controlled_switch_loss_2s (sc_core::sc_module_name name, double proportional_element);
+	sc_core::sc_in <bool> control;
+private:
+	void calculus ();
+        const double P;
+
+};
+
+// Implementation of class controlled_switch_loss_2s:
+
+template <class T> controlled_switch_loss_2s <T>:: controlled_switch_loss_2s (sc_core::sc_module_name name, double proportional_element) :P(proportional_element)
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation << control;
+	this->port[0] <<= this->port[1] <<= 1;
+}
+
+template <class T> void controlled_switch_loss_2s <T>::calculus ()
+{
+	// only works if normalization resistances are the same for both ports...
+        const double Pn = P / this->port[0]->get_normalization();
+
+	typename T::wave_type a0 = this->port[0]->read(), a1 = this->port[1]->read();
+	bool on = control->read();
+
+	this->port[0]->write(on ? Pn*a0/(2+Pn) + 2.0*a1/(2+Pn) : a0);
+	this->port[1]->write(on ? 2.0*a0/(2+Pn) + Pn*a1/(2+Pn) : a1);
 }
 
 #endif // NONLINEAR_H
