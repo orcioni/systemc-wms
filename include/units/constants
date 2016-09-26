@@ -31,6 +31,5 @@ const double me = 9.1093897e-31;       //electron mass
 const double mp = 1.6726231e-27;       //proton mass
 const double Na = 6.0221367e+23;       //Avogadro constant
 const double k  = 1.380658e-23;        //Boltzmann constant
-const double ssigma = 5.670367e-8;       //Stefan–Boltzmann constant kg / s^3 / K^4
 
 #endif

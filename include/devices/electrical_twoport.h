@@ -32,7 +32,6 @@
 // transducer
 // transformer
 //
-// Rs_2s     -- R series - two port in series between port1 and port2
 // RCs_2s    -- RC series - two port in series between port1 and port2
 // RCs_2p    -- RC series - two port in parallel with port1 and port2
 // RCp_2s    -- RC parallel- two port in series between port1 and port2
@@ -45,7 +44,6 @@
 // RLCs_2p   -- RLC series- two port in parallel with port1 and port2
 // RLCp_2s   -- RLC parallel- two port in series between port1 and port2
 // RLCp_2p   -- RLC parallel- two port in parallel with port1 and port2
-typedef Ps_2s<electrical>   Rs_2s;
 typedef PIs_2s<electrical>  RCs_2s;
 typedef PIs_2p<electrical>  RCs_2p;
 typedef PIp_2s<electrical>  RCp_2s;

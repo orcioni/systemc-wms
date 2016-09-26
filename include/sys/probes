@@ -191,13 +191,13 @@ template <class T> void probe<T>::field (double *var) const
     //const double C = tau / R;
 
     // var[0] = (2*a*sqrt_R0 - state[0]/C) / (R + R0);
-    var[0] = (2*a*pow(sqrt_R0, reflection) - state[0]) / tau;
+    var[0] = (2*a*sqrt_R0 - state[0]) / tau;
 
 }
 
 
 
-// Definition of class instant probe
+// Definition of class instant probe - PROVA
 
 template <class T1>
 struct iprobe : wave_module<1, T1>
@@ -231,57 +231,7 @@ template <class T> void iprobe<T>::calculus ()
      const double sqrt_R0 = this->port->get_normalization_sqrt();
      typename T::wave_type a = this->port->read();
      this->port->write(this->reflection * a);
-     this->output->write(2.0*a*pow(sqrt_R0, reflection));
+     this->output->write(2.0*a/sqrt_R0);
    }
-
-
-// Definition of class integrator
-
-template <class T1>
-struct integrator : wave_module<1, T1>, analog_module
-{
-SC_HAS_PROCESS(integrator);
-integrator (sc_core::sc_module_name name, cfg::source_type type, double time_constant);
-sc_core::sc_out <typename T1::wave_type> output;
-private:
-void field (double *var) const;
-void calculus ();
-double reflection;
-const double tau;
-};
-
-
-// Implementation of class integrator:
-
-
-template <class T> integrator<T>::integrator (sc_core::sc_module_name name, cfg::source_type type, double time_constant):analog_module(1, time_constant / 10, time_constant*10), tau(time_constant)
-
-{
-SC_METHOD(calculus);
-this->sensitive << this->activation;
-switch (type) {
-case cfg::wave    : this->reflection =  0.0; break; // perfect absorber
-case cfg::across  : this->reflection = +1.0; break; // voltage probe
-case cfg::through : this->reflection = -1.0; break; // current probe
-}
-}
-
-template <class T> void integrator<T>::calculus ()
-{
-const double sqrt_R0 = this->port->get_normalization_sqrt();
-typename T::wave_type a = this->port->read();
-this->port->write(this->reflection * a);
-this->output->write(state[0]);
-}
-
-template <class T> void integrator<T>::field (double *var) const
-{
-
-typename T::wave_type a = this->port->read();
-const double sqrt_R0 = this->port->get_normalization_sqrt();
-
-var[0] = (2*a*pow(sqrt_R0, reflection)) / tau;
-
-}
 
 #endif // PROBES_H

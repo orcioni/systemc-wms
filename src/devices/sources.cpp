@@ -225,3 +225,64 @@ double triangular::operator () (double &t) const
 	t += tstep;
 	return y;
 }
+
+
+/*
+ // Implementation of class "rectangular":
+ 
+ rectangular::rectangular (double amplitude, double freq, double duty, double phase, double bias ,int oversample)
+ {
+ this->amplitude = amplitude;
+ this->_freq = freq;
+ this->phase = phase/(2*pi);
+ this->_bias = bias;
+ this->_duty = duty;
+ this->tstep = 0.5 / oversample / freq;
+ }
+ 
+ double rectangular::operator () (double &t) const
+ { double y;
+ 
+ if ( fmod(t*_freq,1) <= (_duty+phase)/_freq )
+ { y= amplitude / 2+_bias;
+ t = t+ _duty/_freq;
+ return y;
+ }
+ else
+ { y=-1*amplitude/2+_bias;
+ t = t+ (1-_duty)/_freq;
+ return y;
+ }
+ 
+ }
+ */
+
+// Implementation of class "rectangular":
+
+rectangular::rectangular (double amplitude, double freq, double duty, double phase, double bias ,int oversample)
+{
+	this->amplitude = amplitude;
+	this->_freq = freq;
+	this->phase = phase/(2*pi);
+	this->_bias = bias;
+	this->_duty = duty;
+	this->tstep = 0.5 / oversample / freq;
+}
+
+double rectangular::operator () (double &t) const
+{ double y;
+	
+	if ( t <= phase/_freq ){y= -1*amplitude/ 2+_bias;	t = t+ (phase)/_freq;	return y;}
+	
+	if (  t > phase/_freq && fmod(t*_freq,1) <= (_duty)/_freq )
+	{ y= amplitude / 2+_bias;
+		t = t+ _duty/_freq;
+		return y;
+	}
+	if ( t > phase/_freq && fmod(t*_freq,1) > (_duty)/_freq )
+	{ y=-1*amplitude/2+_bias;
+		t = t+ (1-_duty)/_freq;
+		return y;
+	}
+	
+}

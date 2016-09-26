@@ -230,4 +230,16 @@ private:
 	double amplitude, phase, tstep,_freq,_bias;
 };
 
+
+//// Declaration of class rectangular (not tested)
+
+struct rectangular : function_base <double>
+{	CLONABLE
+	rectangular (double amplitude, double frequency, double duty=0.5, double phase = 0, double bias = 0 ,int oversample = 256);
+	double operator () (double &t) const;
+private:
+	double amplitude, phase, tstep,_freq,_bias,_duty;
+};
+
+
 #endif // SOURCES_H

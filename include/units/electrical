@@ -77,12 +77,7 @@ Following units conflict with armadillo
 #define pohm  *1e-12
 #define uohm  *1e-6
 #define mohm  *1e-3
-#define ohm    *1
-#define farad  *1
-#define henry  *1
-#define hertz  *1
-#define ampere *1
-#define volt   *1
+#define ohm   *1
 #define kohm  *1e+3
 #define Mohm  *1e+6
 #define Gohm  *1e+9

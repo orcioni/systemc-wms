@@ -29,16 +29,15 @@
 //
 // load
 //
-// R_load R1(sc_core::sc_module_name name, double R)    -- R  one port
-// L_load L1(sc_core::sc_module_name name, double L)    -- L  one port
-// C_load C1(sc_core::sc_module_name name, double C)    -- C  one port
-// RCs_load RC1(sc_core::sc_module_name name, double R, double C) -- RC  series, one port
+// R_load(sc_core::sc_module_name name, double R)    -- R  one port
+// L_load(sc_core::sc_module_name name, double L)    -- L  one port
+// C_load(sc_core::sc_module_name name, double C)    -- C  one port
+// RCs_load(sc_core::sc_module_name name, double R, double C) -- RC  series, one port
 // RCp_load  -- RC parallel, one port
 // RLs_load  -- RL  series, one port
 // RLp_load  -- RL parallel, one port
 // RLCs_load -- RLC series, one port
 // RLCp_load -- RLC parallel, one port
-// Coulomb_counter
 typedef P_load<electrical>  R_load;
 typedef D_load<electrical>  L_load;
 typedef I_load<electrical>  C_load;
@@ -48,12 +47,11 @@ typedef PDs_load<electrical>  RLs_load;
 typedef PDp_load<electrical>  RLp_load;
 typedef PDIs_load<electrical>  RLCs_load;
 typedef PDIp_load<electrical>  RLCp_load;
-typedef integrator<electrical> Coulomb_counter;
 
 // Non linear components and circuits:
 //
-// idiode D1(sc_core::sc_module_name name) -- Ideal diode, one port
-// th_idiode D1(sc_core::sc_module_name name) -- Ideal diode with threshold, one port
+// idiode(sc_core::sc_module_name name) -- Ideal diode, one port
+// th_idiode(sc_core::sc_module_name name) -- Ideal diode with threshold, one port
 // onoff_switch     --  Controlled ideal switch one port, without recycling diode
 // onoff_switchd    --  Controlled ideal switch one port, with recycling diode
 typedef rectifier<electrical> idiode;
