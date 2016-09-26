@@ -19,7 +19,8 @@
 #ifndef IDEAL_H
 #define IDEAL_H
 
-#include "sys/wave_basics"
+#include "../wave_system"
+#include "../sys/wave_basics"
 
 // Library of ideal circuits:
 //

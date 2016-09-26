@@ -18,6 +18,7 @@
 
 #ifndef WAVE_SYSTEM_H
 #define WAVE_SYSTEM_H
+#define MAX_CONN 23
 
 #include "sys/analog_basics"
 #include <cmath>
@@ -191,7 +192,7 @@ class ab_signal_base : public ab_signal_void <T>, public sc_core::sc_prim_channe
 {
 public:
 	// construction and destruction:
-	 ab_signal_base (const char* name, double normalization, double abstol, double reltol) : ab_signal_void<T>(normalization), sc_core::sc_prim_channel(name), max_connections(23), tracefile(0), abstol(abstol), reltol(reltol)
+	 ab_signal_base (const char* name, double normalization, double abstol, double reltol) : ab_signal_void<T>(normalization), sc_core::sc_prim_channel(name), max_connections(MAX_CONN), tracefile(0), abstol(abstol), reltol(reltol)
 	{
 		// TODO: max_connections in this constructor should be passed in from somewhere...
 		init_waves();
@@ -246,7 +247,7 @@ protected:
 		typename T::wave_type fed () const {return b;}
 		void feed (typename T::wave_type const &source)
 		{
-			const double loss = 0.1;
+			const double loss = 0.2;
 			// TODO: this seems to work even with a high loss. Why?
 			typename T::wave_type update_a = (source - a) * (1 - loss);
 			if (T::abs(update_a) > T::abs(a) * parent->reltol + parent->abstol) notify = true;
@@ -392,7 +393,7 @@ public:
 protected:
 	virtual const short *incidence_matrix (int &across, int &through) const = 0;
 	int compute_scattering (double const *norms);
-	enum {max_dim = 23};
+	enum {max_dim = MAX_CONN};
 	double scatter[max_dim][max_dim];
 };
 
@@ -593,7 +594,7 @@ template <class T> struct proxy_port : proxy_port_base
 template <>
 class wave_module <> : public sc_core::sc_module, virtual protected activated_module
 {
-	enum {maxports = 23};
+	enum {maxports = MAX_CONN};
 	typedef nature <double> default_type;
 	proxy_port <default_type> *ports;
 	int usedports;
