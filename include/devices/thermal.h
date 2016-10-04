@@ -72,7 +72,7 @@ typedef I_load<thermal>  Thermal_capacitance;
 // h: coefficient of convective heat transfer [W/(m^2 K)]
 
 // If thermal conductance is constant
-// Thermal_convection radiator(sc_core::sc_module_name name, double h, double A)
+// Thermal_convection radiator(sc_core::sc_module_name name, double area, double h)
 
 struct Thermal_convector : wave_module <2, thermal>
 {
@@ -163,6 +163,53 @@ template <class T1> void P_load_th<T1>::calculus ()
 	tmpl_port->write(b);
 	thrm_port->write(thrm_port->read() + (a*a - b*b) * sqrt(thrm_port->get_normalization()));
 }
+
+
+//	Declaration of class P_load_var_th
+template <class T1>
+struct P_load_var_th : wave_module<2, T1, thermal>
+{
+	typedef wave_module<> base_class;
+	SC_HAS_PROCESS(P_load_var_th);
+	P_load_var_th (sc_core::sc_module_name name, double proportional_element);
+	ab_port <T1>      &tmpl_port;
+	ab_port <thermal> &thrm_port;
+	sc_core::sc_in <typename T1::wave_type> P_port;
+private:
+	void calculus ();
+	void set_P ();
+	double P;
+};
+
+//	Implementation of class P_load_var_th:
+
+template <class T1> P_load_var_th<T1>::P_load_var_th (sc_core::sc_module_name name, double proportional_element) : P(proportional_element), tmpl_port(base_class::port<T1>(1)), thrm_port(base_class::port<thermal>(2))
+{
+	SC_METHOD(calculus);
+	this->sensitive << this->activation;
+	tmpl_port <<= 5;
+	thrm_port <<= 5;
+	
+	SC_METHOD(set_P);
+	this->sensitive << P_port;
+
+}
+
+template <class T1> void P_load_var_th<T1>::set_P ()
+{
+	double P = P_port->read();
+}
+
+template <class T1> void P_load_var_th<T1>::calculus ()
+{
+	double reflection = (P - tmpl_port->get_normalization()) / (P + tmpl_port->get_normalization());
+	typename T1::wave_type a = tmpl_port->read();
+	typename T1::wave_type b = reflection * a;
+	tmpl_port->write(b);
+	thrm_port->write(thrm_port->read() + (a*a - b*b) * sqrt(thrm_port->get_normalization()));
+}
+
+
 
 //	Declaration of class PIparallel_load_th:
 
