@@ -138,6 +138,27 @@ double step::operator () (double &t) const
 	}
 }
 
+// Implemetation of class "step2"
+
+step2::step2 (double amplitude1, double amplitude2, double delay)
+{
+	this->amplitude1 = amplitude1;
+	this->amplitude2 = amplitude2;
+	this->delay = delay;
+}
+
+double step2::operator () (double &t) const
+{
+	if (t < delay){
+		t = delay;
+		return amplitude1;
+	} else {
+		t += 3600;
+		return amplitude2;
+	}
+}
+
+
 // Implemetation of class "bool_step"
 
 bool_step::bool_step (double delay)

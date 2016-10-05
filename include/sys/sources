@@ -198,6 +198,14 @@ private:
 	double amplitude, delay;
 };
 
+struct step2 : function_base <double>
+{	CLONABLE
+step2 (double amplitude1, double amplitude2, double delay);
+double operator () (double &t) const;
+private:
+double amplitude1, amplitude2, delay;
+};
+
 struct ramp : function_base <double>
 {	CLONABLE
 	ramp (double rate, double init, double delay, double tstep);

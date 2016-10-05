@@ -24,6 +24,7 @@
 #include "../sys/oneport"
 #include "../sys/twoport"
 #include "../nature/thermal"
+#include "../units/constants"
 
 //
 // Library of thermal devices
@@ -171,7 +172,7 @@ struct P_load_var_th : wave_module<2, T1, thermal>
 {
 	typedef wave_module<> base_class;
 	SC_HAS_PROCESS(P_load_var_th);
-	P_load_var_th (sc_core::sc_module_name name, double proportional_element);
+	P_load_var_th (sc_core::sc_module_name name);
 	ab_port <T1>      &tmpl_port;
 	ab_port <thermal> &thrm_port;
 	sc_core::sc_in <typename T1::wave_type> P_port;
@@ -183,7 +184,7 @@ private:
 
 //	Implementation of class P_load_var_th:
 
-template <class T1> P_load_var_th<T1>::P_load_var_th (sc_core::sc_module_name name, double proportional_element) : P(proportional_element), tmpl_port(base_class::port<T1>(1)), thrm_port(base_class::port<thermal>(2))
+template <class T1> P_load_var_th<T1>::P_load_var_th (sc_core::sc_module_name name) :tmpl_port(base_class::port<T1>(1)), thrm_port(base_class::port<thermal>(2))
 {
 	SC_METHOD(calculus);
 	this->sensitive << this->activation;
@@ -191,13 +192,13 @@ template <class T1> P_load_var_th<T1>::P_load_var_th (sc_core::sc_module_name na
 	thrm_port <<= 5;
 	
 	SC_METHOD(set_P);
-	this->sensitive << P_port;
+	this->sensitive << this->P_port;
 
 }
 
 template <class T1> void P_load_var_th<T1>::set_P ()
 {
-	double P = P_port->read();
+	P = P_port->read();
 }
 
 template <class T1> void P_load_var_th<T1>::calculus ()
@@ -267,6 +268,86 @@ template <class T> void PIp_load_th<T>::calculus ()
 		
 	}
 }
+
+//	Declaration of class PIparallel_load_var_th:
+
+template <class T>
+struct PIp_load_var_th : wave_module<2, T, thermal>, analog_module
+{
+	typedef wave_module<> base_class;
+	SC_HAS_PROCESS(PIp_load_var_th);
+	PIp_load_var_th (sc_core::sc_module_name name);
+	ab_port <T> &tmpl_port;
+	ab_port <thermal> &thrm_port;
+	sc_core::sc_in <typename T::wave_type> P_port;
+	sc_core::sc_in <typename T::wave_type> I_port;
+public:
+	void ics(double IC);
+private:
+	void set_P ();
+	void set_I ();
+	void calculus ();
+	void field (double *var) const;
+	double P, I;
+};
+
+
+//	Implementation of class PIparallel_load_var_th:
+
+template <class T> PIp_load_var_th<T>::PIp_load_var_th (sc_core::sc_module_name name) : analog_module(1), tmpl_port(base_class::port<T>(1)), thrm_port(base_class::port<thermal>(2))
+{
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	
+	SC_METHOD(set_P);
+	this->sensitive << this->P_port;
+
+	SC_METHOD(set_I);
+	this->sensitive << this->I_port;
+}
+
+template <class T> void PIp_load_var_th<T>::set_P ()
+{
+	P = P_port->read();
+}
+
+template <class T> void PIp_load_var_th<T>::set_I ()
+{
+	I = I_port->read();
+}
+
+
+template <class T> void PIp_load_var_th<T>::ics(double IC)
+{
+	this->ic(I*IC);
+}
+
+template <class T> void PIp_load_var_th<T>::field (double *var) const
+{
+
+	const double P0 = tmpl_port->get_normalization();
+	const double sqrt_P0 = tmpl_port->get_normalization_sqrt();
+	
+	var[0] = 2 * tmpl_port->read() / sqrt_P0 -  state[0]*(P+P0)/(P*P0*I);
+}
+
+template <class T> void PIp_load_var_th<T>::calculus ()
+{
+	const double sqrt_P0 = tmpl_port->get_normalization_sqrt();
+	if (!set_steplimits_used) {
+		const double P0 = tmpl_port->get_normalization();
+		set_steplimits(P0*I/100.0,P0/10.0);
+	}
+	while (step()) {
+		double a = tmpl_port->read();
+		double b = - (a - state[0]/(sqrt_P0*I));
+		double vR = (a+b)*sqrt_P0;
+		tmpl_port->write(b);
+		thrm_port->write(thrm_port->read() + (vR*vR/P) * sqrt(thrm_port->get_normalization()));
+		
+	}
+}
+
 
 // Two template ports and one thermal port
 

@@ -29,11 +29,12 @@
 
 // Declaration of electrothermal components
 
-typedef P_load_th<electrical>		R_load_th;
-typedef P_load_var_th<electrical>   R_load_var_th;
-typedef PIp_load_th<electrical>		RCp_load_th;
-typedef Ps_2s_th<electrical>		Rs_2s_th;
-typedef PIp_2p_th<electrical>		RCp_2p_th;
+typedef P_load_th<electrical>		  R_load_th;
+typedef P_load_var_th<electrical>     R_load_var_th;
+typedef PIp_load_var_th<electrical>   RCp_load_var_th;
+typedef PIp_load_th<electrical>		  RCp_load_th;
+typedef Ps_2s_th<electrical>		  Rs_2s_th;
+typedef PIp_2p_th<electrical>		  RCp_2p_th;
 
 
 #endif //ELC_THERMAL_H
