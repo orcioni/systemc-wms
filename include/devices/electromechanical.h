@@ -20,7 +20,6 @@
 #define ELECTROMECHANICAL_H
 
 #include "../analog_system"
-#include "../wave_system"
 #include "../nature/threephase"
 #include "../nature/rotational"
 

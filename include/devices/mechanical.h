@@ -20,7 +20,6 @@
 #define MECHANICAL_H
 
 #include "../analog_system"
-#include "../wave_system"
 #include "../nature/mechnical"
 
 //

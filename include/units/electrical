@@ -16,8 +16,8 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-#ifndef ELECTRICAL_H
-#define ELECTRICAL_H
+#ifndef ELECTRICAL_UH
+#define ELECTRICAL_UH
 
 /*
 Following units conflict with armadillo

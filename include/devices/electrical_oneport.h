@@ -19,7 +19,6 @@
 #ifndef ELECTRICAL_ONEPORT_H
 #define ELECTRICAL_ONEPORT_H
 
-#include "../wave_system"
 #include "../analog_system"
 #include "../nature/electrical"
 #include "../sys/oneport"

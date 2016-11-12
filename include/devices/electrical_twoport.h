@@ -21,7 +21,6 @@
 
 #include "../nature/electrical"
 #include "../analog_system"
-#include "../wave_system"
 #include "../sys/nonlinear"
 #include "../sys/twoport"
 #include "../sys/ideal"

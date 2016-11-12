@@ -20,7 +20,6 @@
 #define THREEPHASE_H
 
 #include "../analog_system"
-#include "../wave_system"
 #include "../nature/threephase"
 #include "../nature/electrical"
 #include "../sys/oneport"

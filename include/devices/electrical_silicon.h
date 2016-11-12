@@ -20,7 +20,6 @@
 #ifndef ELECTRICAL_SILICON_H
 #define ELECTRICAL_SILICON_H
 
-#include "wave_system"
 #include "analog_system"
 #include "nature/electrical"
 
