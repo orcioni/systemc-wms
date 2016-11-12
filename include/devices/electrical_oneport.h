@@ -23,6 +23,7 @@
 #include "../nature/electrical"
 #include "../sys/oneport"
 #include "../sys/nonlinear"
+#include "../sys/probes"
 
 // Library of linear components and circuits:
 //
