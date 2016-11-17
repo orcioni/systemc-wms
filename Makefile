@@ -15,7 +15,7 @@ SRCS += src/devices/electromechanical.cpp
 SRCS += src/devices/threephase.cpp
 SRCS += src/devices/electrical_silicon.cpp
 SRCS += src/devices/thermal.cpp
-SRCS += src/devices/electrothermal.cpp
+#SRCS += src/devices/electrothermal.cpp
 
 %.o : %.cpp
 	$(CXX) $(CFLAGS) -o $@ -c $<
