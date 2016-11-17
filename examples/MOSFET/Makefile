@@ -2,6 +2,9 @@ include ../Makefile-local
 CFLAGS += -O2
 LDLIBS += -lsystemc 
 TARGET := test
+ifeq ($(HAVE_LAPACK),yes)
+        LDLIBS += -llapack
+endif
 
 SRCS := transistor.cpp
 

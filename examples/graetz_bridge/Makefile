@@ -2,7 +2,9 @@ include ../Makefile-local
 CFLAGS += -O2
 LDLIBS += -lsystemc -lpthread -llapack
 TARGET := test
-
+ifeq ($(HAVE_LAPACK),yes)
+        LDLIBS += -llapack
+endif
 SRCS := bridge.cpp
 
 %.o : %.cpp

@@ -2,7 +2,9 @@ include ../Makefile-local
 CFLAGS += -O2 
 LDLIBS += -lsystemc -llapack
 TARGET := self
-
+ifeq ($(HAVE_LAPACK),yes)
+        LDLIBS += -llapack
+endif
 SRCS := self_oscillating_HB.cpp
 
 %.o : %.cpp
