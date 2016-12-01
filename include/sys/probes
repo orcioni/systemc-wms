@@ -132,6 +132,43 @@ template <class T> void comparator<T, delayed>::field (double *var) const
 }
 
 
+// Definition of class instant probe
+
+template <class T1>
+struct iprobe : wave_module<1, T1>
+{
+SC_HAS_PROCESS(iprobe);
+iprobe (sc_core::sc_module_name name, cfg::source_type type);
+sc_core::sc_out <typename T1::wave_type> output;
+private:
+void calculus ();
+double reflection;
+};
+
+
+// Implementation of class iprobe:
+
+
+template <class T> iprobe<T>::iprobe (sc_core::sc_module_name name, cfg::source_type type)
+
+{
+SC_METHOD(calculus);
+this->sensitive << this->activation;
+switch (type) {
+case cfg::wave    : this->reflection =  0.0; break; // perfect absorber
+case cfg::across  : this->reflection = +1.0; break; // voltage probe
+case cfg::through : this->reflection = -1.0; break; // current probe
+}
+}
+
+template <class T> void iprobe<T>::calculus ()
+{
+const double sqrt_R0 = this->port->get_normalization_sqrt();
+typename T::wave_type a = this->port->read();
+this->port->write(this->reflection * a);
+this->output->write(2.0*a*pow(sqrt_R0, reflection));
+}
+
 // Definition of class probe:
 
 template <class T1>
@@ -196,58 +233,19 @@ template <class T> void probe<T>::field (double *var) const
 }
 
 
-
-// Definition of class instant probe
-
-template <class T1>
-struct iprobe : wave_module<1, T1>
-{
-	SC_HAS_PROCESS(iprobe);
-	iprobe (sc_core::sc_module_name name, cfg::source_type type);
-	sc_core::sc_out <typename T1::wave_type> output;
-private:
-	void calculus ();
-	double reflection;
-};
-
-
-// Implementation of class iprobe:
-
-
-template <class T> iprobe<T>::iprobe (sc_core::sc_module_name name, cfg::source_type type)
-
-{
-  SC_METHOD(calculus);
-  this->sensitive << this->activation;
-  switch (type) {
-        case cfg::wave    : this->reflection =  0.0; break; // perfect absorber
-        case cfg::across  : this->reflection = +1.0; break; // voltage probe
-        case cfg::through : this->reflection = -1.0; break; // current probe
-  }
-}
-
-template <class T> void iprobe<T>::calculus ()
-   {
-     const double sqrt_R0 = this->port->get_normalization_sqrt();
-     typename T::wave_type a = this->port->read();
-     this->port->write(this->reflection * a);
-     this->output->write(2.0*a*pow(sqrt_R0, reflection));
-   }
-
-
 // Definition of class integrator
 
 template <class T1>
 struct integrator : wave_module<1, T1>, analog_module
 {
-SC_HAS_PROCESS(integrator);
-integrator (sc_core::sc_module_name name, cfg::source_type type, double time_constant);
-sc_core::sc_out <typename T1::wave_type> output;
+	SC_HAS_PROCESS(integrator);
+	integrator (sc_core::sc_module_name name, cfg::source_type type, double time_constant);
+	sc_core::sc_out <typename T1::wave_type> output;
 private:
-void field (double *var) const;
-void calculus ();
-double reflection;
-const double tau;
+	void field (double *var) const;
+	void calculus ();
+	double reflection;
+	const double tau;
 };
 
 
@@ -257,31 +255,30 @@ const double tau;
 template <class T> integrator<T>::integrator (sc_core::sc_module_name name, cfg::source_type type, double time_constant):analog_module(1, time_constant / 10, time_constant*10), tau(time_constant)
 
 {
-SC_METHOD(calculus);
-this->sensitive << this->activation;
-switch (type) {
-case cfg::wave    : this->reflection =  0.0; break; // perfect absorber
-case cfg::across  : this->reflection = +1.0; break; // voltage probe
-case cfg::through : this->reflection = -1.0; break; // current probe
-}
+	SC_THREAD(calculus);
+	this->sensitive << this->activation;
+	switch (type) {
+		case cfg::wave    : this->reflection =  0.0; break; // perfect absorber
+		case cfg::across  : this->reflection = +1.0; break; // voltage probe
+		case cfg::through : this->reflection = -1.0; break; // current probe
+	}
 }
 
 template <class T> void integrator<T>::calculus ()
 {
-const double sqrt_R0 = this->port->get_normalization_sqrt();
-typename T::wave_type a = this->port->read();
-this->port->write(this->reflection * a);
-this->output->write(state[0]);
+	while (step()) {
+		typename T::wave_type a = this->port->read();
+		this->port->write(this->reflection * a);
+		this->output->write(state[0]);
+	}
 }
 
 template <class T> void integrator<T>::field (double *var) const
 {
+	typename T::wave_type a = this->port->read();
+	const double sqrt_R0 = this->port->get_normalization_sqrt();
 
-typename T::wave_type a = this->port->read();
-const double sqrt_R0 = this->port->get_normalization_sqrt();
-
-var[0] = (2*a*pow(sqrt_R0, reflection)) / tau;
-
+	var[0] = (2*a*pow(sqrt_R0, reflection)) / tau;
 }
 
 #endif // PROBES_H
