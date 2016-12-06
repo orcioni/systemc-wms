@@ -18,7 +18,7 @@
 
 #ifndef WAVE_SYSTEM_H
 #define WAVE_SYSTEM_H
-#define MAX_CONN 23
+#define MAX_CONN 25
 
 #include "sys/analog_basics"
 #include <cmath>
@@ -305,9 +305,9 @@ public:
 	virtual void end_of_elaboration ();
 private:
 	double total_normalization;
-	double beta[6];
+	double beta[MAX_CONN];
 	// for tracing:
-	typename T::dump_type maintrace, portraces[6];
+	typename T::dump_type maintrace, portraces[MAX_CONN];
 };
 
 template <class T, int sign> inline const typename T::wave_type ab_signal_uniform<T, sign>::read () const
