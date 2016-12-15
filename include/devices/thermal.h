@@ -20,6 +20,7 @@
 #define THERMAL_H
 
 #include "../analog_system"
+#include "../nature/thermal"
 #include "../sys/oneport"
 #include "../sys/twoport"
 #include "../nature/thermal"
