@@ -19,11 +19,11 @@
 #ifndef ELC_THERMAL_H
 #define ELC_THERMAL_H
 
+#include <vector> 
+#include "../nature/electrical"
 #include "../analog_system"
-#include "../wave_system"
 #include "../sys/oneport"
 #include "../sys/twoport"
-#include "../nature/thermal"
 #include "thermal.h"
 
 
@@ -35,6 +35,5 @@ typedef PIp_load_var_th<electrical>   RCp_load_var_th;
 typedef PIp_load_th<electrical>		  RCp_load_th;
 typedef Ps_2s_th<electrical>		  Rs_2s_th;
 typedef PIp_2p_th<electrical>		  RCp_2p_th;
-
 
 #endif //ELC_THERMAL_H

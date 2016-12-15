@@ -140,6 +140,8 @@ composite_source <T> operator + (function_base <T> const &p1, function_base <T> 
 	return composite_source<T>(p1, p2);
 }
 
+//// Declarations of source functions
+
 struct file : function_base <double>
 {	CLONABLE
 	file (const char *filename, int column = 1);
@@ -152,11 +154,6 @@ private:
 	const int column;
 	mutable double next_time, next_value, curr_time, curr_value;
 };
-
-#include <complex>
-
-
-//// Declarations of source functions
 
 struct dc : function_base <double>
 {	CLONABLE
@@ -174,6 +171,7 @@ private:
 	double amplitude, omega, phase, tstep;
 };
 
+#include <complex>
 struct sine_threephase : function_base <std::complex <double> >
 {	CLONABLE
 	sine_threephase (double amplitude, double frequency, double phase = 0);
