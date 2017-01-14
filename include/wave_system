@@ -18,7 +18,7 @@
 
 #ifndef WAVE_SYSTEM_H
 #define WAVE_SYSTEM_H
-#define MAX_CONN 25
+#define MAX_CONN 55
 
 #include "sys/analog_basics"
 #include <cmath>
