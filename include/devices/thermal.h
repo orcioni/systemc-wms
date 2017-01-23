@@ -52,7 +52,8 @@
 // For a list of thermal conductivity please refer to
 // https://en.wikipedia.org/wiki/List_of_thermal_conductivities
 
-typedef P_load<thermal>    Thermal_resistance;
+typedef P_load<thermal>    Thermal_load;
+typedef Ps_2s<thermal>	   Thermal_resistance;
 
 // Thermal element representing STORING of heat. It is also called heat mass.
 //If a start value for initialization (i.e. T = 25 degree Celsius) is needed:
