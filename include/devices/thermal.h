@@ -69,7 +69,7 @@ typedef I_load<thermal>  Thermal_capacitance;
 // This thermal element represents a plate in contact with a fluid
 // It can be represented as a 2 port with a resistance between the thermal conductor and the fluid
 // The thermal conductance Gr is calculated as a function of h
-// Gc = A*h [W/K]
+// Gr = A*h [W/K]
 // A = Area of radiator [m^2]
 // h: coefficient of convective heat transfer [W/(m^2 K)]
 
