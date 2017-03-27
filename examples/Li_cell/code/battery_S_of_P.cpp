@@ -68,7 +68,7 @@ int sc_main (int argc, char *argv[])
 	
 	
 	// names of parameters files
-	const std::vector<string> param_names =	{"../data/Ri_0.0024_5.csv", "../data/R1_0.0012_5.csv", "../data/C1_41667_5.csv", "../data/R2_0.0002_5.csv", "../data/C2_15000_5.csv", "../data/OCV_3.28_5.csv"};
+	const std::vector<string> param_names =	{"../data/Ri.csv", "../data/R1.csv", "../data/C1.csv", "../data/R2.csv", "../data/C2.csv", "../data/OCV.csv"};
 	
 	// cell  parameters
 	const double Qnom = 180000; // 50Ah = 180000 Coulomb
