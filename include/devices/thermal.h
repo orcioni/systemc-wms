@@ -53,7 +53,12 @@
 // https://en.wikipedia.org/wiki/List_of_thermal_conductivities
 
 typedef P_load<thermal>    Thermal_load;
+// Constructor
+// P_load (sc_core::sc_module_name name, double proportional_element);
+
 typedef Ps_2s<thermal>	   Thermal_resistance;
+// Constructor
+// Ps_2s (sc_core::sc_module_name name, double proportional_element);
 
 // Thermal element representing STORING of heat. It is also called heat mass.
 //If a start value for initialization (i.e. T = 25 degree Celsius) is needed:
@@ -352,7 +357,7 @@ template <class T> void PIp_load_var_th<T>::calculus ()
 
 // Two template ports and one thermal port
 
-//	Declaration of class Ps_2s
+//	Declaration of class Pseries_2port_series_thermal
 
 template <class T>
 struct Ps_2s_th : wave_module<3, T, T, thermal>
