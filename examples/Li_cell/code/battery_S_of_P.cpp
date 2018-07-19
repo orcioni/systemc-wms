@@ -47,11 +47,11 @@ int sc_main (int argc, char *argv[])
 		sscanf(argv[3], "%lf", &TEMP);
 		sscanf(argv[4], "%s",  fileName);
 	}  else {
-		std::cout << "Usage: " << argv[0] << " <sim_time> <initial soc> <current_file> <out_file>\n\n";
+		std::cout << "Usage: " << argv[0] << " <sim_time> <initial soc> <TEMP> <out_file>\n\n";
 		std::cout << "sim_time       -> Duration of simulation [s];\n";
-		std::cout << "soc_i          -> Initial SOC [0-1]\n";
+		std::cout << "initial soc    -> Initial SOC [0-1]\n";
 		std::cout << "TEMP           -> Ambiente temperature [°C]\n";
-		std::cout << "fileName       -> Name of trace file\n";
+		std::cout << "out_file       -> Name of output trace file\n";
 		std::cout << std::endl;
 		return 1;
 	}
@@ -162,7 +162,7 @@ int sc_main (int argc, char *argv[])
 	Thermal_capacitance *Cap[M][N];
 	Thermal_resistance *Rint[M][N], *Rcnt[M-1][N];
 	Thermal_convector *heat_sink[M][N];
-	Li_cell_itrp *B_cell[M][N];
+	Li_cell *B_cell[M][N];
 	ab_connector <electrical> *parallel2series[M];
 	
 	// The ambient, numeric value of ambient temperature
@@ -181,7 +181,7 @@ int sc_main (int argc, char *argv[])
 			
 			// Cells
 			std::string name = "B_cell_" + std::to_string(i)+ std::to_string(j);
-			B_cell[i][j] = new Li_cell_itrp(name.c_str(), param_names, soc_i+soc_n(engine), Qnom+Qnom_n(engine), *params[i][j]);
+			B_cell[i][j] = new Li_cell(name.c_str(), param_names, soc_i+soc_n(engine), Qnom+Qnom_n(engine), *params[i][j]);
 			B_cell[i][j]->e_port(Cell_ch_sh[i]);
 			B_cell[i][j]->th_port(Cell_th_ch_int[i][j]);
 			B_cell[i][j]->clock_port(clk);

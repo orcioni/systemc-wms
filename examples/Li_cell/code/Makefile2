@@ -10,7 +10,7 @@ CFLAGS += -O2 -std=c++11 -I/opt/local/include
 LDLIBS += -lsystemc -llapack -larmadillo -L /opt/local/lib
 TARGET := cells
 
-SRCS := battery_P.cpp cell.cpp
+SRCS := interpol.cpp battery_P.cpp cell.cpp
 
 %.o : %.cpp
 	$(CXX) $(CFLAGS) -o $@ -c $<

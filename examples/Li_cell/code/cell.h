@@ -26,13 +26,15 @@
 #include "nature/thermal"
 #define ARMA_DONT_USE_WRAPPER
 #include <armadillo>
+#include "interpol.h"
 using namespace arma;
 using namespace std;
+
 
 //  Declaration of Litium-ion battery Li_cell with variable component values
 //  shunt diode on R2-C2 and internal 2D interpolation
 
-struct Li_cell : wave_module <2, electrical, thermal>, analog_module
+struct Li_cell : wave_module <2, electrical, thermal>, analog_module, interpol
 {
 	typedef wave_module<> base_class;
 	SC_HAS_PROCESS(Li_cell);
@@ -45,16 +47,6 @@ public:
 	void ics(double VC1, double VC2);
 	double soc, T, Vocv;
 private:
-	
-	struct Record2D
-	{
-		double in1;
-		double in2;
-		double out;
-	};
-	tuple<vector<double>*,vector<double>*, Mat<double>* >  load2DRecords(const std::string &cvs_fileName);
-	double interpol2D(double input1, double input2, vector<double> *vin1, vector<double> *vin2, Mat<double> *vout);
-	void order2DRecords(std::vector<Record2D>* records);
 	
 	void calculus ();
 	void set_params();
@@ -71,6 +63,7 @@ private:
 typedef Li_cell Li_cell_itrp;
 
 //  Declaration of Litium-ion battery Li_cell
+// with fixed parameters
 
 struct Li_cell_x : wave_module <2, electrical, thermal>, analog_module
 {
